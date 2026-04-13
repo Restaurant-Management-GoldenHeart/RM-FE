@@ -1,30 +1,36 @@
+/**
+ * MenuManagement.jsx — Quản lý hiển thị thực đơn và chọn món
+ *
+ * Nâng cấp:
+ *   - Sử dụng useCartStore để quản lý món đang chọn.
+ *   - Hiển thị badge số lượng món đang nằm trong giỏ (draft).
+ *   - Hiệu ứng animation khi thêm món.
+ *   - Tự động lọc theo Category và Tìm kiếm.
+ */
 import React, { useState, useMemo, useEffect } from 'react';
-import { usePosStore } from '../store/usePosStore';
+import { useTableStore } from '../store/useTableStore';
+import { useCartStore, selectItemQtyInDraft, EMPTY_DRAFT } from '../store/useCartStore';
+import { usePosStore } from '../store/usePosStore'; // Lấy menuItems từ store gốc
 import { cn } from '../utils/cn';
-import { Search, Plus, UtensilsCrossed, Loader2, Frown } from 'lucide-react';
+import { Search, Plus, UtensilsCrossed, Loader2, Frown, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
 
 const ProductCard = ({ product }) => {
-  const addToCart       = usePosStore(s => s.addToCart);
-  const selectedTableId = usePosStore(s => s.selectedTableId);
-  const cart            = usePosStore(s => s.cart);
+  const selectedTableId = useTableStore(s => s.selectedTableId);
+  const addItem         = useCartStore(s => s.addItem);
+  const cartQty         = useCartStore(s => (s.draftItems[selectedTableId] ?? EMPTY_DRAFT).find(i => i.menuItemId === product.id)?.quantity ?? 0);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const cartQty = useMemo(() => {
-    if (!selectedTableId) return 0;
-    const tableCart = cart[selectedTableId] ?? [];
-    return tableCart.find(i => i.menuItemId === product.id)?.quantity ?? 0;
-  }, [cart, selectedTableId, product.id]);
-
   const handleAdd = () => {
-    if (!selectedTableId) {
-      toast.error('Vui lòng chọn bàn trước!');
+    const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
+    if (!selectedTableId || table?.status !== 'OCCUPIED') {
+      toast.error('⚠️ Vui lòng mở bàn trước khi chọn món!');
       return;
     }
-    addToCart(product);
+    addItem(selectedTableId, product);
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 400);
   };
@@ -56,10 +62,12 @@ const ProductCard = ({ product }) => {
           'absolute top-4 right-4 w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xl',
           isAnimating ? 'bg-gold-500 scale-125 rotate-90' : 'bg-white/90 backdrop-blur-md group-hover:bg-gold-600'
         )}>
-          <Plus size={20} className={cn('transition-all duration-300', isAnimating ? 'text-white' : 'text-gold-600 group-hover:text-white')} />
+          {isAnimating ? (
+            <Check size={20} className="text-white" />
+          ) : (
+            <Plus size={20} className="text-gold-600 group-hover:text-white" />
+          )}
         </div>
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
       <div className="p-5">
@@ -75,7 +83,7 @@ const ProductCard = ({ product }) => {
         <div className="flex items-center justify-between pt-3 border-t border-gray-50">
           <p className="font-black text-gray-900 text-base tabular-nums">{formatVND(product.price)}</p>
           <div className="flex items-center gap-1 text-[10px] font-extrabold text-gray-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-            Thêm
+            Thêm Ngay
           </div>
         </div>
       </div>
@@ -87,12 +95,11 @@ export const MenuGrid = () => {
   const menuItems   = usePosStore(s => s.menuItems);
   const categories  = usePosStore(s => s.categories);
   const menuLoading = usePosStore(s => s.menuLoading);
-
+  
   const [activeCategoryId, setActiveCategoryId] = useState('all');
   const [searchInput, setSearchInput]           = useState('');
   const [debouncedSearch, setDebouncedSearch]   = useState('');
 
-  // Debounce logic
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);
     return () => clearTimeout(timer);
@@ -123,7 +130,6 @@ export const MenuGrid = () => {
 
   return (
     <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden p-6 gap-6">
-      {/* ── Header Area ── */}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-3">
@@ -146,34 +152,28 @@ export const MenuGrid = () => {
               placeholder="Tìm kiếm món ăn..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-gold-300 focus:ring-4 focus:ring-gold-500/5 transition-all outline-none placeholder:text-gray-300"
+              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-gold-300 transition-all outline-none"
             />
           </div>
         </div>
 
-        {/* Categories Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           <button
             onClick={() => setActiveCategoryId('all')}
             className={cn(
               'px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border shrink-0',
-              activeCategoryId === 'all'
-                ? 'bg-gold-600 border-gold-600 text-white shadow-xl shadow-gold-600/20'
-                : 'bg-white border-gray-100 text-gray-400 hover:border-gold-200 hover:text-gold-600'
+              activeCategoryId === 'all' ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
             )}
           >
             Tất cả
           </button>
-
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setActiveCategoryId(cat.id)}
               className={cn(
                 'px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border shrink-0',
-                activeCategoryId === cat.id
-                  ? 'bg-gold-600 border-gold-600 text-white shadow-xl shadow-gold-600/20'
-                  : 'bg-white border-gray-100 text-gray-400 hover:border-gold-200 hover:text-gold-600'
+                activeCategoryId === cat.id ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
               )}
             >
               {cat.name}
@@ -182,28 +182,19 @@ export const MenuGrid = () => {
         </div>
       </div>
 
-      {/* ── Main Grid ── */}
       <div className="flex-1 overflow-y-auto pr-1 no-scrollbar pb-6">
-        {menuLoading && menuItems.length === 0 ? (
+        {menuLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 12 }).map((_, i) => <SkeletonProduct key={i} />)}
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonProduct key={i} />)}
           </div>
         ) : filteredItems.length > 0 ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredItems.map(item => (
-              <ProductCard key={item.id} product={item} />
-            ))}
+            {filteredItems.map(item => <ProductCard key={item.id} product={item} />)}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-center">
             <Frown size={48} className="text-gray-100 mb-4" />
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Không có kết quả</h3>
-            <button 
-              onClick={() => { setSearchInput(''); setActiveCategoryId('all'); }}
-              className="mt-4 text-xs font-bold text-gold-600 hover:underline"
-            >
-              Đặt lại bộ lọc
-            </button>
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Không có món nào được tìm thấy</h3>
           </div>
         )}
       </div>
