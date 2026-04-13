@@ -14,6 +14,7 @@ import ProfilePage from './pages/ProfilePage';
 import EmployeesPage from './pages/EmployeesPage';
 import CustomersPage from './pages/CustomersPage';
 import StaffPosPage from './pages/StaffPosPage';
+import KdsBoard from './pages/KdsBoard';
 import KitchenPage from './pages/KitchenPage';
 import InventoryPage from './pages/InventoryPage';
 
@@ -124,7 +125,7 @@ function AppRoutes() {
           path="/kitchen"
           element={
             <RoleGuard allowedRoles={['KITCHEN', 'ADMIN', 'MANAGER']}>
-              <KitchenPage />
+              <KdsBoard />
             </RoleGuard>
           }
         />
