@@ -10,109 +10,121 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTableStore } from '../store/useTableStore';
 import { useCartStore, selectItemQtyInDraft, EMPTY_DRAFT } from '../store/useCartStore';
-import { usePosStore } from '../store/usePosStore'; // Lấy menuItems từ store gốc
+import { useMenuStore } from '../store/useMenuStore';
 import { cn } from '../utils/cn';
 import { Search, Plus, UtensilsCrossed, Loader2, Frown, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
+import MenuItemCard from './pos/MenuItemCard';
+import { useAuthStore } from '../store/useAuthStore';
+import { MenuFormModal } from './menu/MenuFormModal';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
 
-const ProductCard = ({ product }) => {
-  const selectedTableId = useTableStore(s => s.selectedTableId);
+const ProductCardWrapper = ({ product, onEdit, onDelete, isPOSView }) => {
+  const currentOrderTarget = useTableStore(s => s.currentOrderTarget);
   const addItem         = useCartStore(s => s.addItem);
-  const cartQty         = useCartStore(s => (s.draftItems[selectedTableId] ?? EMPTY_DRAFT).find(i => i.menuItemId === product.id)?.quantity ?? 0);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const role            = useAuthStore(s => s.role);
+  const isAdmin         = role === 'ADMIN';
 
   const handleAdd = () => {
-    const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
-    if (!selectedTableId || table?.status !== 'OCCUPIED') {
-      toast.error('⚠️ Vui lòng mở bàn trước khi chọn món!');
+    if (!currentOrderTarget.id) {
+      toast.error('⚠️ Vui lòng chọn bàn hoặc đơn mang về trước khi thêm món!');
       return;
     }
-    addItem(selectedTableId, product);
-    setIsAnimating(true);
-    setTimeout(() => setIsAnimating(false), 400);
+    addItem(currentOrderTarget.id, product);
   };
 
   return (
-    <div
-      onClick={handleAdd}
-      className={cn(
-        'group relative bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-500',
-        'hover:shadow-2xl hover:shadow-gold-600/10 hover:border-gold-200 active:scale-95 cursor-pointer select-none',
-        isAnimating && 'ring-2 ring-gold-500 ring-offset-2 scale-95'
-      )}
-    >
-      <div className="aspect-[5/4] overflow-hidden bg-gray-50 relative">
-        <img
-          src={product.thumbnail || `https://placehold.co/400x320/f9fafb/94a3b8?text=${encodeURIComponent(product.name)}`}
-          alt={product.name}
-          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-          loading="lazy"
-        />
-        
-        {cartQty > 0 && (
-          <div className="absolute top-4 left-4 bg-gold-600 text-white text-[12px] font-black w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-gold-600/40 animate-in zoom-in duration-300">
-            {cartQty}
-          </div>
-        )}
-
-        <div className={cn(
-          'absolute top-4 right-4 w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xl',
-          isAnimating ? 'bg-gold-500 scale-125 rotate-90' : 'bg-white/90 backdrop-blur-md group-hover:bg-gold-600'
-        )}>
-          {isAnimating ? (
-            <Check size={20} className="text-white" />
-          ) : (
-            <Plus size={20} className="text-gold-600 group-hover:text-white" />
-          )}
-        </div>
-      </div>
-
-      <div className="p-5">
-        <div className="flex flex-col gap-1 mb-3">
-          <span className="text-[10px] font-black text-gold-600 uppercase tracking-widest leading-none">
-            {product.categoryName || 'Món ăn'}
-          </span>
-          <h4 className="font-black text-gray-900 line-clamp-2 min-h-[2.5rem] text-sm tracking-tight leading-tight group-hover:text-gold-700 transition-colors">
-            {product.name}
-          </h4>
-        </div>
-        
-        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-          <p className="font-black text-gray-900 text-base tabular-nums">{formatVND(product.price)}</p>
-          <div className="flex items-center gap-1 text-[10px] font-extrabold text-gray-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-            Thêm Ngay
-          </div>
-        </div>
-      </div>
-    </div>
+    <MenuItemCard 
+      product={product}
+      onAdd={handleAdd}
+      onEdit={() => onEdit(product)}
+      onDelete={() => onDelete(product)}
+      isAdmin={isAdmin}
+      isPOSView={isPOSView}
+    />
   );
 };
 
-export const MenuGrid = () => {
-  const menuItems   = usePosStore(s => s.menuItems);
-  const categories  = usePosStore(s => s.categories);
-  const menuLoading = usePosStore(s => s.menuLoading);
+export const MenuGrid = ({ isPOSView = false }) => {
+  const {
+    menuItems,
+    categories,
+    loading: menuLoading,
+    fetchMenuItems,
+    addMenuItem,
+    updateMenuItem,
+    deleteMenuItem
+  } = useMenuStore();
+
+  const role = useAuthStore(s => s.role);
+  const isAdmin = role === 'ADMIN';
+
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
   
   const [activeCategoryId, setActiveCategoryId] = useState('all');
-  const [searchInput, setSearchInput]           = useState('');
-  const [debouncedSearch, setDebouncedSearch]   = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
+  // Dummy branches & ingredients for the modal since useMenu was removed
+  const branches = [{ id: 1, name: 'Golden Heart Branch 1' }];
+  const ingredients = []; 
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+    fetchMenuItems();
+  }, [fetchMenuItems]);
 
+  // ─── Handlers ─────────────────────────────────────────────────────────────
+
+  const handleOpenAdd = () => {
+    setEditItem(null);
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (item) => {
+    setEditItem(item);
+    setShowModal(true);
+  };
+
+  const handleSave = async (payload) => {
+    try {
+      if (editItem) {
+        await updateMenuItem(editItem.id, payload);
+      } else {
+        await addMenuItem(payload);
+      }
+      setShowModal(false);
+      setEditItem(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (product) => {
+    try {
+      await deleteMenuItem(product.id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ─── Filter Logic ───────────────────────────────────────────────────────
+  
   const filteredItems = useMemo(() => {
-    return menuItems.filter(item => {
-      const itemCatId = item.categoryId ?? item.category?.id;
-      const matchesCategory = activeCategoryId === 'all' || itemCatId === activeCategoryId;
-      const matchesSearch = !debouncedSearch.trim() || item.name.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
-      return matchesCategory && matchesSearch;
-    });
-  }, [menuItems, activeCategoryId, debouncedSearch]);
+    let result = menuItems || [];
+    if (activeCategoryId && activeCategoryId !== 'all') {
+      result = result.filter(item => (item.categoryId ?? item.category?.id) === activeCategoryId);
+    }
+    if (searchInput.trim()) {
+      const q = searchInput.toLowerCase();
+      result = result.filter(item => 
+        item.name?.toLowerCase().includes(q) || 
+        item.categoryName?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [menuItems, activeCategoryId, searchInput]);
 
   const SkeletonProduct = () => (
     <div className="bg-white rounded-3xl overflow-hidden border border-gray-50 animate-pulse">
@@ -129,7 +141,7 @@ export const MenuGrid = () => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden p-6 gap-6">
+    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden p-6 gap-6 relative">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-3">
@@ -142,18 +154,29 @@ export const MenuGrid = () => {
             </div>
           </div>
 
-          <div className="relative group flex-1 max-w-sm">
-            <Search className={cn(
-              "absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300",
-              debouncedSearch ? "text-gold-600" : "text-gray-300 group-focus-within:text-gold-500"
-            )} size={18} />
-            <input
-              type="text"
-              placeholder="Tìm kiếm món ăn..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-gold-300 transition-all outline-none"
-            />
+          <div className="flex items-center gap-4 flex-1 justify-end max-w-2xl">
+            {isAdmin && !isPOSView && (
+              <button 
+                onClick={handleOpenAdd}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-gold-200 text-gold-600 font-black text-[10px] uppercase tracking-widest hover:bg-gold-50 transition-all shrink-0"
+              >
+                <Plus size={14} />
+                Thêm món
+              </button>
+            )}
+            <div className="relative flex-1 max-w-sm group">
+              <Search className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300",
+                searchInput ? "text-gold-600" : "text-gray-300 group-focus-within:text-gold-500"
+              )} size={18} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm món ăn..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full pl-12 pr-6 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-gold-300 transition-all outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -162,7 +185,7 @@ export const MenuGrid = () => {
             onClick={() => setActiveCategoryId('all')}
             className={cn(
               'px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border shrink-0',
-              activeCategoryId === 'all' ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
+              activeCategoryId === 'all' || activeCategoryId === '' ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
             )}
           >
             Tất cả
@@ -184,12 +207,20 @@ export const MenuGrid = () => {
 
       <div className="flex-1 overflow-y-auto pr-1 no-scrollbar pb-6">
         {menuLoading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             {Array.from({ length: 8 }).map((_, i) => <SkeletonProduct key={i} />)}
           </div>
         ) : filteredItems.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredItems.map(item => <ProductCard key={item.id} product={item} />)}
+          <div className="grid grid-cols-2 gap-6">
+            {filteredItems.map(item => (
+              <ProductCardWrapper 
+                key={item.id} 
+                product={item} 
+                onEdit={handleOpenEdit}
+                onDelete={handleDelete}
+                isPOSView={isPOSView}
+              />
+            ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -198,6 +229,18 @@ export const MenuGrid = () => {
           </div>
         )}
       </div>
+
+      {showModal && (
+        <MenuFormModal 
+          item={editItem}
+          categories={categories}
+          branches={branches}
+          ingredients={ingredients}
+          onSave={handleSave}
+          onClose={() => { setShowModal(false); setEditItem(null); }}
+          saving={false}
+        />
+      )}
     </div>
   );
 };

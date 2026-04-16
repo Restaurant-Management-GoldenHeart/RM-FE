@@ -54,7 +54,7 @@ export const useCartStore = create((set, get) => ({
    */
   addItem: async (tableId, menuItem) => {
     if (!tableId) {
-      toast.error('⚠️ Vui lòng chọn bàn trước khi thêm món!');
+      toast.error('⚠️ Vui lòng chọn bàn hoặc đơn mang về trước khi thêm món!');
       return;
     }
 

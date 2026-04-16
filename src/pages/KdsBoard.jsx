@@ -8,6 +8,7 @@ import { usePosStore } from '../store/usePosStore';
 import { transformOrdersToKdsItems, groupKdsItems, filterByKitchenType } from '../utils/kdsTransform';
 import KdsColumn from '../components/kds/KdsColumn';
 import KdsCard from '../components/kds/KdsCard';
+import CancelItemModal from '../components/kds/CancelItemModal';
 
 /**
  * Enterprise KDS Board
@@ -22,6 +23,9 @@ export default function KdsBoard() {
   const [kitchenType, setKitchenType] = useState('KITCHEN'); // 'KITCHEN' | 'BAR'
   const [showLogs, setShowLogs] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [cancellingItem, setCancellingItem] = useState(null);
+
+  const cancelItemAction = useOrderStore(state => state.cancelItem);
 
   // ─── 1. Transformation & Filtering ───
   const kdsItems = useMemo(() => transformOrdersToKdsItems(orders, menuItems), [orders, menuItems]);
@@ -126,28 +130,67 @@ export default function KdsBoard() {
       <main className="flex-1 overflow-x-auto p-8 flex gap-8 custom-scrollbar">
         <KdsColumn title="Chờ nấu" count={waitingItems.length} color="border-orange-500">
           {Object.entries(groupedWaiting).map(([table, orders]) => (
-            <KdsCard key={table} tableNumber={table} orders={orders} kdsStatus="WAITING" />
+            <KdsCard 
+              key={table} 
+              tableNumber={table} 
+              orders={orders} 
+              kdsStatus="WAITING" 
+              onOpenCancel={setCancellingItem}
+            />
           ))}
         </KdsColumn>
 
         <KdsColumn title="Đang nấu" count={cookingItems.length} color="border-blue-500">
           {Object.entries(groupedCooking).map(([table, orders]) => (
-            <KdsCard key={table} tableNumber={table} orders={orders} kdsStatus="COOKING" />
+            <KdsCard 
+              key={table} 
+              tableNumber={table} 
+              orders={orders} 
+              kdsStatus="COOKING" 
+              onOpenCancel={setCancellingItem}
+            />
           ))}
         </KdsColumn>
 
         <KdsColumn title="Hoàn tất" count={doneItems.length} color="border-green-500">
           {Object.entries(groupedDone).map(([table, orders]) => (
-            <KdsCard key={table} tableNumber={table} orders={orders} kdsStatus="DONE" />
+            <KdsCard 
+              key={table} 
+              tableNumber={table} 
+              orders={orders} 
+              kdsStatus="DONE" 
+            />
           ))}
         </KdsColumn>
 
         <KdsColumn title="Đã huỷ" count={cancelledItems.length} color="border-red-500">
           {Object.entries(groupedCancelled).map(([table, orders]) => (
-            <KdsCard key={table} tableNumber={table} orders={orders} kdsStatus="CANCELLED" />
+            <KdsCard 
+              key={table} 
+              tableNumber={table} 
+              orders={orders} 
+              kdsStatus="CANCELLED" 
+            />
           ))}
         </KdsColumn>
       </main>
+
+      {/* Cancel Reason Modal */}
+      {cancellingItem && (
+        <CancelItemModal
+          isOpen={!!cancellingItem}
+          item={cancellingItem}
+          onClose={() => setCancellingItem(null)}
+          onSubmit={(itemId, reason) => {
+            cancelItemAction({ 
+              orderId: cancellingItem.orderId, 
+              itemId, 
+              reason 
+            });
+            setCancellingItem(null);
+          }}
+        />
+      )}
 
       {/* ── Audit Logs Drawer ── */}
       {showLogs && (

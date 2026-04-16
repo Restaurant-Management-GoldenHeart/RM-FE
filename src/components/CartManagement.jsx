@@ -179,15 +179,18 @@ const SentItemRow = ({ item, orderId }) => {
 };
 
 export const CartPanel = () => {
-  const selectedTableId = useTableStore(s => s.selectedTableId);
-  const table           = useTableStore(s => s.tables.find(t => t.id === selectedTableId));
+  const currentOrderTarget = useTableStore(s => s.currentOrderTarget);
+  const takeawayOrder   = useTableStore(s => s.takeawayOrders.find(o => o.id === currentOrderTarget.id));
+  const table           = useTableStore(s => s.tables.find(t => t.id === currentOrderTarget.id)) || takeawayOrder;
+
+  const isTakeaway = currentOrderTarget.type === 'TAKEAWAY';
   
-  const draftItems = useCartStore(s => s.draftItems[selectedTableId] ?? EMPTY_DRAFT);
+  const draftItems = useCartStore(s => s.draftItems[currentOrderTarget.id] ?? EMPTY_DRAFT);
   const draftTotal = useMemo(() => draftItems.reduce((s, i) => s + i.price * i.quantity, 0), [draftItems]);
   const isSending  = useCartStore(s => s.isSending);
   const sendToKitchen = useCartStore(s => s.sendToKitchen);
   
-  const orderId = table?.currentOrderId;
+  const orderId = table?.currentOrderId || takeawayOrder?.orderId;
   const order   = useOrderStore(s => orderId ? s.orders[orderId] : null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   
@@ -199,14 +202,14 @@ export const CartPanel = () => {
   }, [order]);
 
   const handleSend = async () => {
-    if (!table?.currentOrderId) {
-      toast.error("Vui lòng mở bàn trước khi gửi bếp!");
+    if (!orderId) {
+      toast.error("Vui lòng mở bàn hoặc tạo đơn mang về trước khi gửi bếp!");
       return;
     }
-    await sendToKitchen({ tableId: selectedTableId, orderId: table.currentOrderId });
+    await sendToKitchen({ tableId: currentOrderTarget.id, orderId: orderId });
   };
 
-  if (!selectedTableId) {
+  if (!currentOrderTarget.id) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-white rounded-3xl border border-gray-100 p-8 text-center shadow-sm">
         <div className="w-24 h-24 bg-gold-50 rounded-[2.5rem] flex items-center justify-center shadow-inner mb-8 active:scale-95 transition-transform">
@@ -214,7 +217,7 @@ export const CartPanel = () => {
         </div>
         <h3 className="font-black text-gray-900 uppercase tracking-[0.2em] text-sm">Chưa chọn bàn</h3>
         <p className="text-[11px] font-bold text-gray-400 mt-3 max-w-[220px] leading-relaxed uppercase tracking-wider">
-          Chọn bàn ở sơ đồ để bắt đầu phục vụ.
+          Chọn bàn hoặc tạo đơn mang về để bắt đầu phục vụ.
         </p>
       </div>
     );
@@ -227,21 +230,21 @@ export const CartPanel = () => {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <div className={cn("w-2 h-2 rounded-full", table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+              <div className={cn("w-2 h-2 rounded-full", isTakeaway ? "bg-gold-500 animate-pulse" : (table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse" : "bg-emerald-500"))} />
               <span className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em]">
-                {table?.status === 'OCCUPIED' ? 'Bàn đang bận' : 'Bàn trống'}
+                {isTakeaway ? 'Đơn mang về' : (table?.status === 'OCCUPIED' ? 'Bàn đang bận' : 'Bàn trống')}
               </span>
             </div>
             <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
-              Bàn {table?.tableNumber || `#${selectedTableId}`}
-              {table?.currentOrderId && (
+              {currentOrderTarget.name || (isTakeaway ? `Mang về - ${takeawayOrder?.customerName}` : `Bàn ${table?.tableNumber || `#${currentOrderTarget.id}`}`)}
+              {orderId && (
                 <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-black rounded-xl border border-gray-200">
-                  #{table.currentOrderId}
+                  #{orderId}
                 </span>
               )}
             </h3>
           </div>
-          {table?.status === 'AVAILABLE' && (
+          {!isTakeaway && table?.status === 'AVAILABLE' && (
              <div className="px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-xl border border-emerald-100">
                 SẴN SÀNG PHỤC VỤ
              </div>
@@ -257,14 +260,14 @@ export const CartPanel = () => {
             <div className="flex items-center justify-between px-2">
               <h4 className="text-[10px] font-black text-gold-600 uppercase tracking-widest">Món mới chọn ({draftItems.length})</h4>
               <button 
-                onClick={() => useCartStore.getState().clearDraft(selectedTableId)}
+                onClick={() => useCartStore.getState().clearDraft(currentOrderTarget.id)}
                 className="text-[10px] font-bold text-red-400 hover:text-red-500 uppercase"
               >
                 Xoá hết
               </button>
             </div>
             <div className="space-y-2">
-              {draftItems.map(item => <DraftItemRow key={item.menuItemId} tableId={selectedTableId} item={item} />)}
+              {draftItems.map(item => <DraftItemRow key={item.menuItemId} tableId={currentOrderTarget.id} item={item} />)}
             </div>
           </div>
         )}

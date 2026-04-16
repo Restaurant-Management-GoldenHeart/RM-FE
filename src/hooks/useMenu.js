@@ -18,19 +18,6 @@ export function useMenu() {
   const pageSize = 10;
 
   // 0. Metadata Fetching
-  
-  // Note: These should eventually come from their own APIs
-  const categoriesQuery = useQuery({
-    queryKey: ['menuCategories'],
-    queryFn: async () => [
-      { id: 1, name: 'Món Phở' },
-      { id: 2, name: 'Món Thêm' },
-      { id: 3, name: 'Đồ Uống' },
-      { id: 4, name: 'Tráng Miệng' },
-    ],
-    staleTime: 1000 * 60 * 30,
-  });
-
   const branchesQuery = useQuery({
     queryKey: ['branches'],
     queryFn: async () => [
@@ -40,14 +27,13 @@ export function useMenu() {
     staleTime: 1000 * 60 * 30,
   });
 
-  // REAL INTEGRATION: Fetch ingredients from Inventory
   const ingredientsQuery = useQuery({
     queryKey: ['inventoryIngredients'],
     queryFn: async () => {
       const res = await inventoryApi.getInventoryItems({ size: 100 });
       return res.data?.content || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 mins
+    staleTime: 1000 * 60 * 5,
   });
 
   // 1. Fetch Menu Items
@@ -67,6 +53,20 @@ export function useMenu() {
     }),
     placeholderData: (previousData) => previousData,
   });
+
+  // 1b. Dynamic Categories Extraction
+  const categories = useMemo(() => {
+    const rawItems = data?.data?.content || [];
+    const seen = new Map();
+    for (const item of rawItems) {
+      const catId = item.categoryId ?? item.category?.id;
+      const catName = item.categoryName ?? item.category?.name;
+      if (catId && !seen.has(catId)) {
+        seen.set(catId, { id: catId, name: catName ?? `Danh mục ${catId}` });
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [data]);
 
   // 2. Helper: Error Extractor
   const extractError = (err) => {
@@ -137,7 +137,7 @@ export function useMenu() {
     keyword,
     categoryId,
     page,
-    categories: categoriesQuery.data || [],
+    categories,
     branches: branchesQuery.data || [],
     ingredients: mappedIngredients,
 

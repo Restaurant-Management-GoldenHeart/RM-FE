@@ -11,6 +11,7 @@ import {
   Clock, Activity, Package, AlertCircle, AlertTriangle,
   RefreshCw, Loader2
 } from 'lucide-react';
+import AdminDashboard from '../components/AdminDashboard';
 
 /**
  * Skeleton — Placeholder loading effect
@@ -220,10 +221,6 @@ export default function DashboardPage() {
               <Calendar className="w-4 h-4 text-gray-400" />
               <span>{dateStr}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-gray-500 text-sm font-medium">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <span>Bắt đầu phiên lúc 08:30</span>
-            </div>
           </div>
         </div>
         
@@ -236,29 +233,17 @@ export default function DashboardPage() {
             {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />}
             Làm mới dữ liệu
           </button>
-          <button className="px-6 py-2.5 bg-gold-600 text-white rounded-xl text-sm font-bold hover:bg-gold-700 transition-all shadow-lg shadow-gold-600/20 active:scale-95">
-            Báo cáo hôm nay
-          </button>
         </div>
       </div>
 
-      {/* ── Global Failure Banner ── */}
-      {allFailed && (
-        <div className="flex items-center gap-4 p-4 bg-red-50 border border-red-100 rounded-2xl animate-bounce-subtle">
-          <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/20">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-red-900">Không thể tải dữ liệu hệ thống</p>
-            <p className="text-xs text-red-600 mt-0.5">Vui lòng kiểm tra kết nối internet hoặc thử lại sau vài phút.</p>
-          </div>
-          <button onClick={fetchStats} className="px-4 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold rounded-lg hover:bg-red-50 transition-all">
-            Thử lại
-          </button>
-        </div>
+      {/* Render chi tiết Báo cáo nếu là Admin/Manager */}
+      {(role === 'ADMIN' || role === 'MANAGER') && (
+        <section className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+          <AdminDashboard />
+        </section>
       )}
 
-      {/* ── Indicators ── */}
+      {/* ── Indicators (Thống kê nhanh) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Users} label="Nhân sự" value={stats.employees}
@@ -336,13 +321,6 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <p className="text-sm font-bold text-gray-800">Máy chủ API</p>
                 <p className="text-xs text-gray-500 mt-0.5">Uptime: 99.98% (Online)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 border-t border-gray-50 pt-6">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-800">Bảo mật JWT</p>
-                <p className="text-xs text-gray-500 mt-0.5">Cấu hình refresh token an toàn</p>
               </div>
             </div>
           </div>

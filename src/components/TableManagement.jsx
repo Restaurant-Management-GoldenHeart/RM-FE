@@ -12,13 +12,19 @@ import React, { useState, useMemo } from 'react';
 import { useTableStore } from '../store/useTableStore';
 import { useOrderStore } from '../store/useOrderStore';
 import SplitTableModal from './pos/SplitTableModal';
+import FloorPlanView from './table-map/FloorPlanView';
+import TakeawayCard from './pos/TakeawayCard';
+import TakeawayActionModal from './pos/TakeawayActionModal';
+import CustomerNameModal from './pos/CustomerNameModal';
 import { cn } from '../utils/cn';
 import {
   LayoutGrid, Users, CircleDot, ChefHat,
   Clock, CalendarClock, X, CheckCircle2,
   Loader2, TrendingUp, Sparkles, ArrowRightLeft,
-  Phone, User as UserIcon, Settings
+  Phone, User as UserIcon, Settings, ShoppingBag, Plus,
+  Pencil, Trash2
 } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
@@ -28,45 +34,8 @@ const STATUS_CONFIG = {
   DIRTY:     { card: 'bg-gray-50 border-gray-200 hover:border-gray-400', badge: 'bg-gray-200 text-gray-600 border-gray-300', dot: 'bg-gray-400', label: 'Cần dọn' },
 };
 
-// ─── Component: Thẻ bàn ───
-const TableCard = ({ table, isSelected, onSelect, onAction }) => {
-  const config = STATUS_CONFIG[table.status] || STATUS_CONFIG.AVAILABLE;
-  return (
-    <div
-      onClick={() => onSelect(table)}
-      className={cn(
-        'relative p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer overflow-hidden select-none group',
-        config.card,
-        isSelected && 'border-gold-500 shadow-xl ring-4 ring-gold-500/5 bg-gold-50/5',
-      )}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className={cn('flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider', config.badge)}>
-          <div className={cn('w-1.5 h-1.5 rounded-full', config.dot, config.pulse && 'animate-pulse')} />
-          {config.label}
-        </div>
-        
-        {/* Settings Button - Only shows on hover or if selected */}
-        <button 
-          onClick={(e) => { e.stopPropagation(); onAction(table); }}
-          className="p-1.5 bg-gray-50 text-gray-400 hover:bg-gold-600 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100"
-        >
-          <Settings size={14} />
-        </button>
-      </div>
-
-      <h3 className={cn('font-black text-xl tracking-tight transition-colors', isSelected ? 'text-gold-600' : 'text-gray-900')}>
-        {table.tableNumber}
-      </h3>
-      <div className="flex items-center gap-1.5 mt-2">
-        <Users size={12} className="text-gray-400" />
-        <span className="text-[10px] font-black text-gray-400 uppercase">{table.capacity} chỗ</span>
-      </div>
-      {isSelected && <div className="absolute top-0 right-1 w-6 h-6 bg-gold-600 rotate-45 translate-x-3 -translate-y-3 shadow-lg" />}
-    </div>
-  );
-};
-
+// Inline TakeawayCard removed and imported from ./pos/TakeawayCard
+// TableCard was moved and unified.
 // ─── Component: Modal Hành động ───
 const TableActionModal = ({ table, onClose, onSelect }) => {
   const { openTable, cleanTable, reserveTable, mergeTables, tables } = useTableStore();
@@ -211,41 +180,163 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
 };
 
 // ─── Main Component: TableList ───
-export const TableList = ({ selectedTableId, onTableSelect }) => {
-  const { tables, loading, fetchTables } = useTableStore();
+export const TableList = ({ currentOrderTarget, onTableSelect }) => {
+  const { tables, takeawayOrders, createTakeawayOrder, deleteTable, loading, fetchTables } = useTableStore();
+  const role = useAuthStore(s => s.role);
+  const isAdmin = true; // Mock quyền Admin theo yêu cầu
+  
+  const [mode, setMode] = useState('DINE_IN'); // DINE_IN hoặc TAKEAWAY
   const [filter, setFilter] = useState('ALL');
   const [actionTable, setActionTable] = useState(null);
+  const [actionTakeaway, setActionTakeaway] = useState(null);
+  const [openingTakeawaySlot, setOpeningTakeawaySlot] = useState(null);
 
-  const stats = useMemo(() => ({ total: tables.length, avail: tables.filter(t => t.status === 'AVAILABLE').length, occu: tables.filter(t => t.status === 'OCCUPIED').length, dirty: tables.filter(t => t.status === 'DIRTY').length }), [tables]);
-  const filtered = useMemo(() => filter === 'ALL' ? tables : tables.filter(t => t.status === filter), [tables, filter]);
+  const stats = useMemo(() => ({ 
+    total: tables.length, 
+    avail: tables.filter(t => t.status === 'AVAILABLE').length, 
+    occu: tables.filter(t => t.status === 'OCCUPIED').length, 
+    dirty: tables.filter(t => t.status === 'DIRTY').length 
+  }), [tables]);
+
+  const filtered = useMemo(() => 
+    filter === 'ALL' ? tables : tables.filter(t => t.status === filter), 
+  [tables, filter]);
+
+  const handleTakeawayClick = async (slot) => {
+    if (slot.status === 'AVAILABLE') {
+      setOpeningTakeawaySlot(slot);
+    } else {
+      onTableSelect({ 
+        table: { id: slot.id, tableNumber: 'Mang về', customerName: slot.customerName }, 
+        orderId: slot.orderId 
+      });
+    }
+  };
+
+  const handleConfirmOpeningTakeaway = async (customerName) => {
+    if (!openingTakeawaySlot) return;
+    
+    const res = await createTakeawayOrder(openingTakeawaySlot.id, customerName);
+    if (res) {
+      onTableSelect({ 
+        table: { id: openingTakeawaySlot.id, tableNumber: 'Mang về', customerName: customerName }, 
+        orderId: res.orderId, 
+        order: res.order 
+      });
+    }
+    setOpeningTakeawaySlot(null);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden text-gray-900">
+      {/* 1. Module Tabs */}
+      <div className="flex p-2 bg-gray-50 border-b border-gray-100">
+        <button
+          onClick={() => setMode('DINE_IN')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+            mode === 'DINE_IN' ? 'bg-white text-gold-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+          )}
+        >
+          <LayoutGrid size={14} /> Tại bàn
+        </button>
+        <button
+          onClick={() => setMode('TAKEAWAY')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+            mode === 'TAKEAWAY' ? 'bg-white text-gold-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+          )}
+        >
+          <ShoppingBag size={14} /> Mang về
+        </button>
+      </div>
+
       <div className="p-6 border-b border-gray-50">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gold-50 rounded-xl flex items-center justify-center text-gold-600"><LayoutGrid size={20} /></div><div><h2 className="font-black text-gray-900 text-lg uppercase tracking-tight leading-none">Sơ đồ nhà hàng</h2><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Floor Diagram v2</p></div></div>
-          <button onClick={() => fetchTables(1)} className="p-2.5 hover:bg-gold-50 rounded-xl text-gray-400 hover:text-gold-600 transition-all"><TrendingUp size={18} /></button>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gold-50 rounded-xl flex items-center justify-center text-gold-600">
+              {mode === 'DINE_IN' ? <LayoutGrid size={20} /> : <ShoppingBag size={20} />}
+            </div>
+            <div>
+              <h2 className="font-black text-gray-900 text-lg uppercase tracking-tight leading-none">
+                {mode === 'DINE_IN' ? 'Sơ đồ nhà hàng' : 'Đơn mang về'}
+              </h2>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                {mode === 'DINE_IN' ? 'Floor Diagram v2' : 'Takeaway Orders'}
+              </p>
+            </div>
+          </div>
+          {mode === 'DINE_IN' && (
+            <button onClick={() => fetchTables(1)} className="p-2.5 hover:bg-gold-50 rounded-xl text-gray-400 hover:text-gold-600 transition-all text-gray-400">
+              <TrendingUp size={18} />
+            </button>
+          )}
         </div>
-        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
-          {['ALL', 'AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={cn('px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shrink-0 transition-all', filter === f ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-50')}>{f === 'ALL' ? 'Tất cả' : STATUS_CONFIG[f].label}</button>
-          ))}
-        </div>
+
+        {mode === 'DINE_IN' && (
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+              {['ALL', 'AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY'].map(f => (
+                <button 
+                  key={f} 
+                  onClick={() => setFilter(f)} 
+                  className={cn(
+                    'px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shrink-0 transition-all', 
+                    filter === f ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-50'
+                  )}
+                >
+                  {f === 'ALL' ? 'Tất cả' : STATUS_CONFIG[f].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="flex-1 overflow-y-auto p-4 no-scrollbar">
-        <div className="grid grid-cols-2 gap-3">
-          {loading ? Array(8).fill(0).map((_, i) => <div key={i} className="h-28 bg-gray-50 rounded-2xl animate-pulse" />) : filtered.map(t => (
-            <TableCard 
-              key={t.id} 
-              table={t} 
-              isSelected={selectedTableId === t.id} 
-              onSelect={(table) => onTableSelect({ table, orderId: table.currentOrderId })} 
+
+      <div className={cn("flex-1 overflow-hidden", mode === 'DINE_IN' ? 'p-0 relative' : 'p-4 overflow-y-auto no-scrollbar')}>
+        {mode === 'DINE_IN' ? (
+          loading ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <Loader2 className="w-10 h-10 text-gold-600 animate-spin" />
+            </div>
+          ) : (
+            <FloorPlanView 
+              tables={filtered}
+              selectedTableId={currentOrderTarget?.id}
+              onSelect={(table) => onTableSelect({ table, orderId: table.currentOrderId })}
               onAction={(table) => setActionTable(table)}
+              gridClass="grid grid-cols-2 gap-3 w-full auto-rows-max"
             />
-          ))}
-        </div>
+          )
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-3 w-full overflow-y-auto content-start">
+            {takeawayOrders.map(order => (
+              <TakeawayCard 
+                key={order.id}
+                order={{
+                  id: order.id,
+                  order_number: order.order_number,
+                  customer_name: order.customerName || 'Khách lẻ',
+                  status: order.status || 'AVAILABLE',
+                  time: order.time || '--:--'
+                }}
+                isActive={currentOrderTarget?.id === order.id}
+                onClick={() => handleTakeawayClick(order)}
+                onAction={(ord) => setActionTakeaway(ord)}
+              />
+            ))}
+          </div>
+        )}
       </div>
+      
       <TableActionModal table={actionTable} onClose={() => setActionTable(null)} onSelect={onTableSelect} />
+      <TakeawayActionModal order={actionTakeaway} onClose={() => setActionTakeaway(null)} onSelect={onTableSelect} />
+      <CustomerNameModal 
+        isOpen={!!openingTakeawaySlot} 
+        slot={openingTakeawaySlot} 
+        onClose={() => setOpeningTakeawaySlot(null)} 
+        onConfirm={handleConfirmOpeningTakeaway} 
+      />
     </div>
   );
 };

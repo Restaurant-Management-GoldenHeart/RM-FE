@@ -153,4 +153,18 @@ export const useKitchenStore = create((set, get) => ({
     }
   },
 
+  /**
+   * clearOrdersAfterPayment — Dọn dẹp món ăn khỏi bếp sau khi thanh toán.
+   * Dùng để xóa các card ở cột 'Hoàn tất' (hoặc bất kỳ trạng thái nào) của đơn này.
+   *
+   * @param {number} orderId
+   */
+  clearOrdersAfterPayment: (orderId) => {
+    set((state) => ({
+      pendingItems: state.pendingItems.filter((item) => item.orderId !== orderId),
+    }));
+    console.log(`[Kitchen] Cleared tickets for Order #${orderId}`);
+  },
+
+
 }));

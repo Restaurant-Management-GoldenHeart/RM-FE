@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Save, UtensilsCrossed, 
   AlertTriangle, Flame, Plus, 
   Trash2, ChevronDown, Loader2,
-  DollarSign 
+  DollarSign, UploadCloud, Image as ImageIcon
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -112,6 +112,11 @@ export function MenuFormModal({
   const [recipes, setRecipes] = useState([]);
   const [errors, setErrors] = useState({});
 
+  // Image states
+  const fileInputRef = useRef(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
   useEffect(() => {
     if (item) {
       setForm({
@@ -122,6 +127,7 @@ export function MenuFormModal({
         branchId: item.branchId ?? '',
         categoryId: item.categoryId ?? '',
       });
+      setImagePreview(item.thumbnail || null);
       setRecipes(item.recipes?.map(r => ({ 
         ingredientId: r.ingredientId, 
         quantity: r.quantity 
@@ -134,6 +140,40 @@ export function MenuFormModal({
       }));
     }
   }, [item, user, branches]);
+
+  // Clean up Object URL
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate size (e.g., 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Ảnh quá lớn (vui lòng chọn ảnh < 5MB)');
+      return;
+    }
+
+    setImageFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+  };
+
+  const removeImage = (e) => {
+    e.stopPropagation();
+    setImageFile(null);
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const validate = () => {
     const e = {};
@@ -168,7 +208,9 @@ export function MenuFormModal({
       price: Number(form.price),
       branchId: Number(form.branchId),
       categoryId: Number(form.categoryId),
-      recipes: cleanRecipes
+      recipes: cleanRecipes,
+      imageFile: imageFile, // Actual file for upload
+      thumbnail: imagePreview // Preview URL or existing URL
     });
   };
 
@@ -216,6 +258,54 @@ export function MenuFormModal({
         {/* Form Body */}
         <div className="overflow-y-auto p-8 custom-scrollbar">
           <form id="menu-form" onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Image Upload Area */}
+            <div className="space-y-2">
+              <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Hình ảnh món ăn</label>
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className={`relative h-48 w-full rounded-[2rem] border-2 border-dashed transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 group ${
+                  imagePreview 
+                    ? "border-amber-500/50" 
+                    : "border-gray-200 bg-gray-50 hover:bg-gray-100/50 hover:border-amber-500/30"
+                }`}
+              >
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden" 
+                />
+
+                {imagePreview ? (
+                  <>
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                       <p className="text-white text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">Thay đổi ảnh</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm text-red-500 shadow-xl flex items-center justify-center hover:bg-white hover:scale-110 transition-all active:scale-95"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 rounded-3xl bg-white shadow-sm flex items-center justify-center border border-gray-100 group-hover:scale-110 transition-all duration-500">
+                      <UploadCloud className="w-8 h-8 text-amber-500" />
+                    </div>
+                    <div className="text-center group-hover:translate-y-[-2px] transition-all">
+                      <p className="text-gray-900 text-xs font-black uppercase tracking-widest">Click hoặc kéo thả ảnh</p>
+                      <p className="text-gray-400 text-[10px] font-bold mt-1 uppercase tracking-tighter">Hỗ trợ JPG, PNG, WEBP (Tối đa 5MB)</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Name */}
                 <div className="space-y-2 md:col-span-2">

@@ -41,19 +41,25 @@ const uuid = () =>
 // ─── In-memory Mock Database ──────────────────────────────────────────────────
 // Khởi tạo 1 lần khi module load, không reset qua hot-reload.
 
-/** @type {Map<number, import('./posTypes').RestaurantTable>} */
 const TABLES_DB = new Map(
   [
-    { id: 1,  branchId: 1, areaId: 1, tableNumber: 'B01', capacity: 4, posX: 0,   posY: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 2,  branchId: 1, areaId: 1, tableNumber: 'B02', capacity: 4, posX: 140, posY: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 3,  branchId: 1, areaId: 1, tableNumber: 'B03', capacity: 6, posX: 280, posY: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 4,  branchId: 1, areaId: 1, tableNumber: 'B04', capacity: 4, posX: 420, posY: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 5,  branchId: 1, areaId: 1, tableNumber: 'B05', capacity: 2, posX: 0,   posY: 120, width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 6,  branchId: 1, areaId: 1, tableNumber: 'B06', capacity: 8, posX: 140, posY: 120, width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 7,  branchId: 1, areaId: 1, tableNumber: 'B07', capacity: 4, posX: 280, posY: 120, width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 8,  branchId: 1, areaId: 1, tableNumber: 'B08', capacity: 4, posX: 420, posY: 120, width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
-    { id: 9,  branchId: 1, areaId: 2, tableNumber: 'VIP1', capacity: 10, posX: 0,  posY: 240, width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
-    { id: 10, branchId: 1, areaId: 2, tableNumber: 'VIP2', capacity: 10, posX: 200, posY: 240, width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
+    // Khu A (area_id: 1)
+    { id: 1,  branchId: 1, area_id: 1, tableNumber: 'A01', capacity: 4, pos_x: 0,   pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 2,  branchId: 1, area_id: 1, tableNumber: 'A02', capacity: 4, pos_x: 140, pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 3,  branchId: 1, area_id: 1, tableNumber: 'A03', capacity: 6, pos_x: 280, pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 4,  branchId: 1, area_id: 1, tableNumber: 'A-VIP1', capacity: 8, pos_x: 0,   pos_y: 120, width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
+    { id: 5,  branchId: 1, area_id: 1, tableNumber: 'A-VIP2', capacity: 8, pos_x: 200, pos_y: 120, width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
+
+    // Khu B (area_id: 2)
+    { id: 6,  branchId: 1, area_id: 2, tableNumber: 'B01', capacity: 4, pos_x: 0,   pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 7,  branchId: 1, area_id: 2, tableNumber: 'B02', capacity: 4, pos_x: 140, pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 8,  branchId: 1, area_id: 2, tableNumber: 'B03', capacity: 6, pos_x: 280, pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 9,  branchId: 1, area_id: 2, tableNumber: 'B-VIP1', capacity: 10,pos_x: 0,   pos_y: 120, width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
+
+    // Sân Vườn (area_id: 3)
+    { id: 10, branchId: 1, area_id: 3, tableNumber: 'SV01', capacity: 4, pos_x: 0,   pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 11, branchId: 1, area_id: 3, tableNumber: 'SV02', capacity: 4, pos_x: 140, pos_y: 0,   width: 120, height: 100, status: 'AVAILABLE', currentOrderId: null },
+    { id: 12, branchId: 1, area_id: 3, tableNumber: 'SV-VIP1', capacity:12,pos_x: 280, pos_y: 0,   width: 180, height: 120, status: 'AVAILABLE', currentOrderId: null },
   ].map(t => [t.id, t])
 );
 
@@ -96,9 +102,15 @@ export const tableApi = {
   openTable: async ({ tableId, branchId = 1, createdBy = 1 }) => {
     await mockDelay(300, 700);
 
-    const table = TABLES_DB.get(tableId);
+    let table = TABLES_DB.get(tableId);
+    
+    // Logic for Virtual Takeaway Table
+    if (tableId === -1) {
+      table = { id: -1, tableNumber: 'Mang về', branchId, status: 'AVAILABLE' };
+    }
+
     if (!table) throw { status: 404, message: `Không tìm thấy bàn #${tableId}` };
-    if (table.status === 'OCCUPIED') {
+    if (table.status === 'OCCUPIED' && tableId !== -1) {
       throw { status: 409, message: `Bàn ${table.tableNumber} đang có khách. Vui lòng chọn bàn khác.` };
     }
 
@@ -271,6 +283,59 @@ export const tableApi = {
     if (!table) throw { status: 404, message: 'Không tìm thấy bàn' };
     TABLES_DB.set(tableId, { ...table, status: 'RESERVED', reservationInfo });
     return { success: true, data: TABLES_DB.get(tableId) };
+  },
+
+  /**
+   * Tạo bàn mới.
+   */
+  createTable: async (data) => {
+    await mockDelay(300, 600);
+    const id = Math.max(...TABLES_DB.keys(), 0) + 1;
+    const newTable = {
+      id,
+      branchId: 1,
+      areaId: data.area_id || data.areaId || 1,
+      area_id: data.area_id || data.areaId || 1,
+      tableNumber: data.tableNumber,
+      capacity: Number(data.capacity),
+      posX: 0,
+      posY: 0,
+      width: 120,
+      height: 100,
+      status: 'AVAILABLE',
+      currentOrderId: null
+    };
+    TABLES_DB.set(id, newTable);
+    return { success: true, data: newTable };
+  },
+
+  /**
+   * Cập nhật thông tin bàn.
+   */
+  updateTable: async (id, data) => {
+    await mockDelay(300, 600);
+    const table = TABLES_DB.get(id);
+    if (!table) throw { status: 404, message: 'Không tìm thấy bàn' };
+    
+    const updated = { 
+      ...table, 
+      tableNumber: data.tableNumber || table.tableNumber,
+      capacity: data.capacity ? Number(data.capacity) : table.capacity,
+      areaId: data.area_id || data.areaId || table.areaId || table.area_id,
+      area_id: data.area_id || data.areaId || table.areaId || table.area_id
+    };
+    TABLES_DB.set(id, updated);
+    return { success: true, data: updated };
+  },
+
+  /**
+   * Xoá bàn.
+   */
+  deleteTable: async (id) => {
+    await mockDelay(300, 600);
+    if (!TABLES_DB.has(id)) throw { status: 404, message: 'Không tìm thấy bàn' };
+    TABLES_DB.delete(id);
+    return { success: true };
   },
 };
 

@@ -35,7 +35,7 @@ const StaffPosPage = () => {
   const menuLoading      = usePosStore(s => s.menuLoading);
   const fetchTables      = useTableStore(s => s.fetchTables);
   const tablesLoading    = useTableStore(s => s.loading);
-  const selectedTableId  = useTableStore(s => s.selectedTableId);
+  const currentOrderTarget = useTableStore(s => s.currentOrderTarget);
   
   const user   = useAuthStore(s => s.user);
   const role   = useAuthStore(s => s.role);
@@ -56,8 +56,12 @@ const StaffPosPage = () => {
   };
 
   const handleTableSelect = ({ table, orderId, order }) => {
-    // 1. Cập nhật ID bàn được chọn vào store
-    useTableStore.setState({ selectedTableId: table.id });
+    // 1. Cập nhật Mục tiêu đơn hàng vào store
+    useTableStore.getState().setCurrentOrderTarget({
+      type: table.tableNumber === 'Mang về' ? 'TAKEAWAY' : 'TABLE',
+      id: table.id,
+      name: table.tableNumber === 'Mang về' ? (table.customerName || `Đơn ${table.id}`) : `Bàn ${table.tableNumber}`
+    });
     
     // 2. Nếu có dữ liệu order truyền vào (từ openTable), lưu ngay vào store
     if (order) {
@@ -135,14 +139,14 @@ const StaffPosPage = () => {
         {/* Left: Table Map (Fixed width) */}
         <div className="w-[340px] shrink-0 animate-in fade-in slide-in-from-left duration-500">
           <TableList 
-            selectedTableId={selectedTableId} 
+            currentOrderTarget={currentOrderTarget} 
             onTableSelect={handleTableSelect} 
           />
         </div>
 
-        {/* Center: Menu (Flexible) */}
-        <div className="flex-1 shrink flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-500 delay-100">
-           <MenuGrid />
+        {/* Middle Panel — Menu */}
+        <div className="flex-1 flex flex-col bg-white overflow-hidden shadow-2xl relative z-10 border-l border-r border-gray-100/50">
+          <MenuGrid isPOSView={true} />
         </div>
 
         {/* Right: Cart/Order (Fixed width) */}

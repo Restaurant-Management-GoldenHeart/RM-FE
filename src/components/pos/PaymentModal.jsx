@@ -11,6 +11,7 @@ import React, { useState, useMemo } from 'react';
 import { useTableStore } from '../../store/useTableStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useCartStore } from '../../store/useCartStore';
+import { useKitchenStore } from '../../store/useKitchenStore';
 import { paymentApi } from '../../api/posApi';
 import { cn } from '../../utils/cn';
 import {
@@ -58,14 +59,24 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       if (res.success) {
         toast.success(`Thanh toán thành công ${formatVND(total)}!`);
         
-        // Cập nhật trạng thái bàn về DIRTY (Cần dọn)
-        useTableStore.getState().updateTableLocal(table.id, { status: 'DIRTY', currentOrderId: null });
+        // 1. Dọn dẹp danh sách dựa trên kiểu đơn hàng
+        const currentOrderTarget = useTableStore.getState().currentOrderTarget;
+        if (currentOrderTarget?.type === 'TAKEAWAY') {
+          // Xóa đơn mang về khỏi danh sách bên trái
+          useTableStore.getState().completeTakeawayOrder(currentOrderTarget.id);
+        } else {
+          // Chuyển bàn sang trạng thái DIRTY (cần dọn)
+          useTableStore.getState().updateTableLocal(table.id, { status: 'DIRTY', currentOrderId: null });
+        }
         
-        // Xoá order khỏi store hoạt động
+        // 2. Xoá order khỏi store hoạt động
         useOrderStore.getState().clearOrder(order.id);
         
-        // Reset selected table
-        useTableStore.setState({ selectedTableId: null });
+        // Dọn dẹp thẻ món ăn ở màn hình bếp (KDS)
+        useKitchenStore.getState().clearOrdersAfterPayment(order.id);
+        
+        // Reset selected target (Bàn/Mang về hiện tại)
+        useTableStore.getState().setCurrentOrderTarget({ type: null, id: null, name: null });
         
         onClose();
       }

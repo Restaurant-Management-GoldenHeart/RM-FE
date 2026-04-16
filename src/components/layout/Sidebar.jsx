@@ -16,13 +16,14 @@ import {
   Menu,
   X,
   Package,
+  Map,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const NAV_ITEMS = [
   {
     to: '/dashboard',
-    label: 'Dashboard',
+    label: 'Báo cáo & Thống kê',
     icon: LayoutDashboard,
     roles: ['ADMIN', 'MANAGER'],
   },
@@ -49,6 +50,12 @@ const NAV_ITEMS = [
     label: 'Bán hàng (POS)',
     icon: ShoppingCart,
     roles: ['ADMIN', 'MANAGER', 'STAFF'],
+  },
+  {
+    to: '/table-map',
+    label: 'Sơ đồ bàn',
+    icon: Map,
+    roles: ['ADMIN', 'MANAGER'],
   },
   {
     to: '/inventory',

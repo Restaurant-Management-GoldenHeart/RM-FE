@@ -13,6 +13,8 @@ import MenuPage from './pages/MenuPage';
 import ProfilePage from './pages/ProfilePage';
 import EmployeesPage from './pages/EmployeesPage';
 import CustomersPage from './pages/CustomersPage';
+import TableMapPage from './pages/TableMapPage';
+
 import StaffPosPage from './pages/StaffPosPage';
 import KdsBoard from './pages/KdsBoard';
 import KitchenPage from './pages/KitchenPage';
@@ -86,6 +88,16 @@ function AppRoutes() {
           element={
             <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
               <CustomersPage />
+            </RoleGuard>
+          }
+        />
+
+        {/* Table Map — ADMIN, MANAGER */}
+        <Route
+          path="/table-map"
+          element={
+            <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+              <TableMapPage />
             </RoleGuard>
           }
         />

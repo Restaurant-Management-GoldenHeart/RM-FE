@@ -8,7 +8,7 @@ import { cn } from '../../utils/cn';
  * Hiển thị Grouped Items trong 1 Column.
  * Cấu trúc: Table > Order > Batch > Items.
  */
-const KdsCard = ({ tableNumber, orders, kdsStatus }) => {
+const KdsCard = ({ tableNumber, orders, kdsStatus, onOpenCancel }) => {
   const updateItemStatus = useOrderStore(s => s.updateItemStatus);
 
   return (
@@ -41,6 +41,7 @@ const KdsCard = ({ tableNumber, orders, kdsStatus }) => {
                 items={items} 
                 onAction={updateItemStatus}
                 kdsStatus={kdsStatus}
+                onOpenCancel={onOpenCancel}
               />
             ))}
           </div>
@@ -53,7 +54,7 @@ const KdsCard = ({ tableNumber, orders, kdsStatus }) => {
 /**
  * Hiển thị nhóm món theo từng đợt gửi (Batch)
  */
-const KdsBatchGroup = ({ batchId, items, onAction, kdsStatus }) => {
+const KdsBatchGroup = ({ batchId, items, onAction, kdsStatus, onOpenCancel }) => {
   const sentTime = useMemo(() => {
     const firstItem = items[0];
     if (!firstItem?.sentAt) return 'N/A';
@@ -75,6 +76,7 @@ const KdsBatchGroup = ({ batchId, items, onAction, kdsStatus }) => {
             item={item} 
             onAction={onAction} 
             kdsStatus={kdsStatus}
+            onOpenCancel={onOpenCancel}
           />
         ))}
       </div>
@@ -85,7 +87,7 @@ const KdsBatchGroup = ({ batchId, items, onAction, kdsStatus }) => {
 /**
  * Một dòng món ăn với Timer và Action buttons
  */
-const KdsItemRow = ({ item, onAction, kdsStatus }) => {
+const KdsItemRow = ({ item, onAction, kdsStatus, onOpenCancel }) => {
   const [waitSecs, setWaitSecs] = useState(0);
 
   useEffect(() => {
@@ -176,7 +178,8 @@ const KdsItemRow = ({ item, onAction, kdsStatus }) => {
               <Play size={14} /> BẮT ĐẦU NẤU
             </button>
             <button 
-              className="px-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200"
+              onClick={() => onOpenCancel?.(item)}
+              className="px-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-colors"
               title="Huỷ món"
             >
               <XCircle size={16} />
