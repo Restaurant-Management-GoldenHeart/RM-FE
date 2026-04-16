@@ -17,6 +17,7 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
   const [toTableId, setToTableId] = useState('');
   const [selectedItems, setSelectedItems] = useState({}); // { itemId: quantity }
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isWarningOpen, setIsWarningOpen] = useState(false);
 
   // Lọc danh sách món hợp lệ để tách (chưa thanh toán, không bị huỷ)
   const items = useMemo(() => {
@@ -49,7 +50,24 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
     const transferPayload = Object.entries(selectedItems).map(([itemId, quantity]) => ({ itemId, quantity }));
     if (transferPayload.length === 0) return toast.error('Vui lòng chọn ít nhất 1 món');
 
+    // Kiểm tra xem có món nào đang nấu/đã gửi bếp không
+    const hasCookingItems = transferPayload.some(move => {
+      const item = order.items.find(i => i.id === move.itemId);
+      return item && ['SENT', 'PREPARING', 'READY'].includes(item.status);
+    });
+
+    if (hasCookingItems) {
+      setIsWarningOpen(true);
+      return;
+    }
+
+    proceedSplit(transferPayload);
+  };
+
+  const proceedSplit = async (payload) => {
+    setIsWarningOpen(false);
     setIsProcessing(true);
+    const transferPayload = payload || Object.entries(selectedItems).map(([itemId, quantity]) => ({ itemId, quantity }));
     const success = await splitTable(order.id, Number(toTableId), transferPayload);
     setIsProcessing(false);
     if (success) onClose();
@@ -149,6 +167,32 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
           </div>
         </div>
       </div>
+
+      {/* Warning Modal */}
+      {isWarningOpen && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-black text-gray-900 mb-2 uppercase tracking-tighter">Cảnh báo tách món</h3>
+            <p className="text-sm font-bold text-gray-500 mb-8 leading-relaxed">
+              Trong danh sách có món đã gửi bếp hoặc đã hoàn thành. Bạn có chắc muốn chuyển các món này sang bàn mới không?
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setIsWarningOpen(false)}
+                className="flex-1 py-3 px-2 bg-gray-100 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => proceedSplit()}
+                className="flex-1 py-3 px-2 bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-amber-600"
+              >
+                Vẫn Tách
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

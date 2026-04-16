@@ -30,7 +30,7 @@ const formatVND = (amount) =>
 // ─── Draft Item Row (Món mới chưa gửi bếp) ───
 const DraftItemRow = ({ tableId, item }) => {
   const updateQuantity = useCartStore(s => s.updateQuantity);
-  const updateNote     = useCartStore(s => s.updateNote);
+  const updateNote = useCartStore(s => s.updateNote);
   const [showNote, setShowNote] = useState(false);
 
   return (
@@ -61,23 +61,23 @@ const DraftItemRow = ({ tableId, item }) => {
         </div>
 
         <div className="flex items-center gap-2">
-           <button
-             onClick={() => setShowNote(!showNote)}
-             className={cn(
-               "w-9 h-9 flex items-center justify-center rounded-xl transition-all border",
-               item.note ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-gray-50 border-gray-100 text-gray-400"
-             )}
-           >
-             <MessageSquare size={16} />
-           </button>
-           
-           <button
-             onClick={() => updateQuantity(tableId, item.menuItemId, 0)}
-             className="w-9 h-9 flex items-center justify-center rounded-xl transition-all border border-red-50 text-red-300 hover:text-red-500 hover:bg-red-50"
-             title="Xoá món"
-           >
-             <Trash2 size={16} />
-           </button>
+          <button
+            onClick={() => setShowNote(!showNote)}
+            className={cn(
+              "w-9 h-9 flex items-center justify-center rounded-xl transition-all border",
+              item.note ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-gray-50 border-gray-100 text-gray-400"
+            )}
+          >
+            <MessageSquare size={16} />
+          </button>
+
+          <button
+            onClick={() => updateQuantity(tableId, item.menuItemId, 0)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-all border border-red-50 text-red-300 hover:text-red-500 hover:bg-red-50"
+            title="Xoá món"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       </div>
 
@@ -98,15 +98,16 @@ const DraftItemRow = ({ tableId, item }) => {
 // ─── Sent Item Row (Món đã gửi bếp) ───
 const SentItemRow = ({ item, orderId }) => {
   const cancelItem = useOrderStore(s => s.cancelItem);
-  const serveItem  = useOrderStore(s => s.serveItem);
+  const serveItem = useOrderStore(s => s.serveItem);
   const [cancelModal, setCancelModal] = useState({ isOpen: false, isForce: false });
 
+  // Map trạng thái món sang nhãn và màu sắc hiển thị
   const statusConfig = {
-    SENT:      { label: 'Đã gửi', color: 'text-gray-500', bg: 'bg-gray-50', dot: 'bg-gray-400' },
+    SENT: { label: 'Đã gửi', color: 'text-gray-500', bg: 'bg-gray-50', dot: 'bg-gray-400' },
     PREPARING: { label: 'Đang làm', color: 'text-amber-600', bg: 'bg-amber-50', dot: 'bg-amber-500' },
-    READY:     { label: 'Chờ cung ứng', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' },
-    SERVED:    { label: 'Đã phục vụ', color: 'text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500' },
-    CANCELLED: { label: 'Đã huỷ', color: 'text-red-500', bg: 'bg-red-50', dot: 'bg-red-500' }
+    READY: { label: 'Chờ cung ứng', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' },
+    SERVED: { label: 'Đã phục vụ', color: 'text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500' },
+    CANCELLED: { label: 'Đã huỷ', color: 'text-red-500', bg: 'bg-red-50', dot: 'bg-red-500' },
   };
 
   const config = statusConfig[item.status] || statusConfig.SENT;
@@ -119,22 +120,45 @@ const SentItemRow = ({ item, orderId }) => {
       <div className="flex items-center gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={cn("w-2 h-2 rounded-full", config.dot)} />
-            <h5 className={cn("font-bold text-sm truncate uppercase tracking-tight", item.status === 'CANCELLED' ? "text-gray-400 line-through" : "text-gray-700")}>
+            <span className={cn("w-2 h-2 rounded-full shrink-0", config.dot)} />
+            <h5 className={cn(
+              "font-bold text-sm truncate uppercase tracking-tight",
+              item.status === 'CANCELLED' ? "text-gray-400 line-through" : "text-gray-700"
+            )}>
               {item.name}
             </h5>
           </div>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3 mt-1 pl-4">
             <p className="text-xs font-bold text-gray-400">{formatVND(item.price)}</p>
             <span className="text-[10px] text-gray-300">×</span>
             <span className="text-xs font-black text-gray-900">{item.quantity}</span>
           </div>
+
+          {/* Hiển thị lý do huỷ món ngay bên dưới tên món để nhân viên
+              có thể xem lại lý do mà không cần mở thêm màn hình nào */}
+          {item.status === 'CANCELLED' && item.cancelReason && (
+            <div className="mt-2 ml-4 flex items-start gap-1.5">
+              <AlertCircle size={11} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[10px] font-bold text-red-500 leading-snug italic">
+                {item.cancelReason.replace('[FORCE] ', '')}
+                {item.cancelReason.includes('[FORCE]') && (
+                  <span className="ml-1 not-italic font-black text-red-700 bg-red-100 px-1 py-0.5 rounded text-[9px]">
+                    FORCE
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className={cn("px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider", config.label === 'Đã huỷ' ? 'border-red-100 bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500 border-gray-100')}>
+        <div className={cn(
+          "px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider shrink-0",
+          config.label === 'Đã huỷ' ? 'border-red-100 bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500 border-gray-100'
+        )}>
           {config.label}
         </div>
 
+        {/* Nút huỷ món thường — chỉ hiện khi status SENT */}
         {item.status === 'SENT' && (
           <button
             onClick={() => setCancelModal({ isOpen: true, isForce: false })}
@@ -145,25 +169,32 @@ const SentItemRow = ({ item, orderId }) => {
           </button>
         )}
 
+        {/* Nút huỷ cưỡng bức — chỉ hiện khi PREPARING (thêm cảnh báo đỏ) */}
         {item.status === 'PREPARING' && (
           <button
             onClick={() => setCancelModal({ isOpen: true, isForce: true })}
             className="w-8 h-8 flex items-center justify-center text-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-            title="Huỷ món đang nấu"
+            title="Huỷ món đang nấu (Cần quyền Manager)"
           >
             <AlertCircle size={16} />
           </button>
         )}
 
-        {/* Force Cancel Dialog */}
+        {/* Modal nhập lý do huỷ — Bắt buộc nhập lý do trước khi xác nhận */}
         <CancelReasonModal
           isOpen={cancelModal.isOpen}
           itemName={item.name}
           isForce={cancelModal.isForce}
-          onConfirm={(reason) => cancelItem({ orderId, itemId: item.id, reason })}
+          onConfirm={(reason) => {
+            // Đóng modal trước để tránh nhấn 2 lần
+            setCancelModal({ ...cancelModal, isOpen: false });
+            // Gọi cancelItem với lý do đã nhập — store sẽ xử lý Optimistic update + API call
+            cancelItem({ orderId, itemId: item.id, reason });
+          }}
           onClose={() => setCancelModal({ ...cancelModal, isOpen: false })}
         />
 
+        {/* Nút "Trả món" — chỉ hiện khi READY (bếp đã xong, chờ mang ra bàn) */}
         {item.status === 'READY' && (
           <button
             onClick={() => serveItem(orderId, item.id)}
@@ -173,24 +204,32 @@ const SentItemRow = ({ item, orderId }) => {
           </button>
         )}
       </div>
-      {item.note && <p className="text-[10px] text-gray-400 bg-gray-50/50 px-2 py-1 rounded-lg border border-dashed border-gray-100">"{item.note}"</p>}
+
+      {/* Ghi chú của món (ví dụ: ít cay, không hành) */}
+      {item.note && (
+        <p className="text-[10px] text-gray-400 bg-gray-50/50 px-2 py-1 rounded-lg border border-dashed border-gray-100 ml-4">
+          "{item.note}"
+        </p>
+      )}
     </div>
   );
 };
 
+
 export const CartPanel = () => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
-  const table           = useTableStore(s => s.tables.find(t => t.id === selectedTableId));
-  
+  const table = useTableStore(s => s.tables.find(t => t.id === selectedTableId));
+
   const draftItems = useCartStore(s => s.draftItems[selectedTableId] ?? EMPTY_DRAFT);
   const draftTotal = useMemo(() => draftItems.reduce((s, i) => s + i.price * i.quantity, 0), [draftItems]);
-  const isSending  = useCartStore(s => s.isSending);
+  const isSending = useCartStore(s => s.isSending);
   const sendToKitchen = useCartStore(s => s.sendToKitchen);
-  
+
   const orderId = table?.currentOrderId;
-  const order   = useOrderStore(s => orderId ? s.orders[orderId] : null);
+  const order = useOrderStore(s => orderId ? s.orders[orderId] : null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  
+  const [isBypassModalOpen, setIsBypassModalOpen] = useState(false);
+
   const sentTotal = useMemo(() => {
     if (!order) return 0;
     return order.items
@@ -204,6 +243,31 @@ export const CartPanel = () => {
       return;
     }
     await sendToKitchen({ tableId: selectedTableId, orderId: table.currentOrderId });
+  };
+  // ─── Hàm xử lý khi nhấn nút "Thanh toán" ───
+  const handlePaymentClick = () => {
+    if (draftItems.length > 0) {
+      setIsBypassModalOpen(true);
+    } else {
+      setIsPaymentOpen(true);
+    }
+  };
+
+  const handleBypassSendAndPay = async () => {
+    // Luồng Giao diện Thanh toán luôn (Bypass)
+    setIsBypassModalOpen(false);
+    // Gửi món nhưng pass thẳng status -> SERVED/PAID
+    if (table?.currentOrderId) {
+      await sendToKitchen({ tableId: selectedTableId, orderId: table.currentOrderId, bypassKitchen: true });
+      setIsPaymentOpen(true);
+    }
+  };
+
+  const handleSendThenWait = async () => {
+    // Luồng nhà hàng: Gửi bếp và ko mở bảng Payment vì phải đợi nướng/nấu
+    setIsBypassModalOpen(false);
+    await handleSend();
+    toast.success("Đã gửi đồ cho bếp. Chờ bếp hoàn thành để thanh toán.");
   };
 
   if (!selectedTableId) {
@@ -242,9 +306,9 @@ export const CartPanel = () => {
             </h3>
           </div>
           {table?.status === 'AVAILABLE' && (
-             <div className="px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-xl border border-emerald-100">
-                SẴN SÀNG PHỤC VỤ
-             </div>
+            <div className="px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-xl border border-emerald-100">
+              SẴN SÀNG PHỤC VỤ
+            </div>
           )}
         </div>
       </div>
@@ -256,7 +320,7 @@ export const CartPanel = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between px-2">
               <h4 className="text-[10px] font-black text-gold-600 uppercase tracking-widest">Món mới chọn ({draftItems.length})</h4>
-              <button 
+              <button
                 onClick={() => useCartStore.getState().clearDraft(selectedTableId)}
                 className="text-[10px] font-bold text-red-400 hover:text-red-500 uppercase"
               >
@@ -292,8 +356,8 @@ export const CartPanel = () => {
         <div className="space-y-2">
           {draftTotal > 0 && (
             <div className="flex justify-between items-center text-xs">
-               <span className="text-gray-400 font-bold uppercase tracking-wider">Món mới:</span>
-               <span className="text-gold-600 font-black tracking-tight">{formatVND(draftTotal)}</span>
+              <span className="text-gray-400 font-bold uppercase tracking-wider">Món mới:</span>
+              <span className="text-gold-600 font-black tracking-tight">{formatVND(draftTotal)}</span>
             </div>
           )}
           <div className="flex justify-between items-end">
@@ -325,13 +389,13 @@ export const CartPanel = () => {
           </button>
 
           <button
-            onClick={() => setIsPaymentOpen(true)}
-            disabled={!table?.currentOrderId || (order?.items?.length === 0 && draftItems.length === 0)}
+            onClick={handlePaymentClick}
+            disabled={!table?.currentOrderId || (order?.items?.length === 0 && draftItems.length === 0) || isSending}
             className={cn(
-               "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
-               table?.currentOrderId && (order?.items?.length > 0 || draftItems.length > 0) 
-                 ? "bg-gold-600 text-white hover:bg-gold-700 shadow-lg shadow-gold-600/20" 
-                 : "bg-gray-50 text-gray-200"
+              "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
+              table?.currentOrderId && (order?.items?.length > 0 || draftItems.length > 0)
+                ? "bg-gold-600 text-white hover:bg-gold-700 shadow-lg shadow-gold-600/20"
+                : "bg-gray-50 text-gray-200"
             )}
           >
             <Receipt size={18} className={table?.currentOrderId ? "text-white" : "text-gray-200"} />
@@ -340,12 +404,49 @@ export const CartPanel = () => {
         </div>
       </div>
 
-      <PaymentModal 
-        isOpen={isPaymentOpen} 
-        onClose={() => setIsPaymentOpen(false)} 
+      <PaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
         table={table}
         order={order}
       />
+
+      {/* Modal Cảnh báo Bypass Kitchen */}
+      {isBypassModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl flex flex-col items-center animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6">
+              <AlertCircle size={32} className="text-amber-500" />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-3">Đơn chưa gửi bếp</h3>
+            <p className="text-sm font-bold text-gray-500 mb-8 leading-relaxed">
+              Bạn có {draftItems.length} món chưa được gửi vào bếp. Bạn muốn gửi bếp trước hay thanh toán luôn (mang đi)?
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={handleSendThenWait}
+                disabled={isSending}
+                className="flex-1 py-4 px-2 bg-white text-gray-600 rounded-2xl border border-gray-200 font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-gray-50 transition-all flex flex-col items-center gap-1"
+              >
+                Gửi bếp chờ món
+              </button>
+              <button
+                onClick={handleBypassSendAndPay}
+                disabled={isSending}
+                className="flex-1 py-4 px-2 bg-amber-500 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:bg-amber-600 active:scale-95 transition-all flex flex-col items-center gap-1"
+              >
+                Thanh toán luôn
+              </button>
+            </div>
+            <button
+              onClick={() => setIsBypassModalOpen(false)}
+              className="mt-6 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest"
+            >
+              Hủy thao tác
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

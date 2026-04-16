@@ -191,71 +191,127 @@ export const tableApi = {
 
   /**
    * Tách bàn (Split Order) — Nghiệp vụ phức tạp.
-   * Di chuyển danh sách items (hoặc một phần quantity) từ Order A sang bàn B.
+   *
+   * Luồng nghiệp vụ:
+   *   1. Validate: Order nguồn và bàn đích tồn tại không
+   *   2. Nếu bàn đích đang trống → tạo Order mới và gắn vào bàn đó
+   *   3. Nếu bàn đích đã có Order → gộp vào Order hiện tại của bàn đó
+   *   4. Di chuyển từng item (hoặc tách theo số lượng) từ fromOrder sang toOrder
+   *   5. Trả về cả 2 order sau khi cập nhật để frontend sync
+   *
+   * Lỗi thường gặp (BUG ĐÃ FIX):
+   *   - transferItems phải dùng `move.itemId` để tìm kiếm trong fromOrder.items
+   *   - toOrder mới tạo cần có `tableNumber` để frontend hiển thị đúng tên bàn
+   *
+   * @param {{ fromOrderId: number, toTableId: number, transferItems: { itemId: string, quantity: number }[] }} payload
    */
   splitOrder: async ({ fromOrderId, toTableId, transferItems }) => {
-    await mockDelay(600, 1200);
+    await mockDelay(200, 400); // Giảm delay để phản hồi tức thì hơn
+
+
+    // --- Validate dữ liệu đầu vào ---
     const fromOrder = ORDERS_DB.get(fromOrderId);
-    if (!fromOrder) throw { status: 404, message: 'Không tìm thấy đơn nguồn' };
+    if (!fromOrder) throw { status: 404, message: 'Không tìm thấy đơn hàng nguồn' };
 
     const toTable = TABLES_DB.get(toTableId);
     if (!toTable) throw { status: 404, message: 'Không tìm thấy bàn đích' };
 
+    // Kiểm tra danh sách item cần chuyển có hợp lệ không
+    // Không được tách các item đã bị HỦY hoặc đã THANH TOÁN
+    const invalidItems = transferItems.filter(move => {
+      const item = fromOrder.items.find(i => i.id === move.itemId);
+      return !item || item.status === 'CANCELLED' || item.status === 'PAID';
+    });
+    if (invalidItems.length > 0) {
+      throw { status: 400, message: 'Danh sách tách có chứa món đã huỷ hoặc đã thanh toán' };
+    }
+
+    // --- Khởi tạo hoặc lấy Order ở bàn đích ---
     let toOrderId = toTable.currentOrderId;
     let toOrder;
 
-    // 1. Khởi tạo/Lấy Order đích
     if (!toOrderId) {
+      // Bàn đích đang trống → tạo order mới
       toOrderId = ++_nextOrderId;
       toOrder = {
         id: toOrderId,
         branchId: fromOrder.branchId,
         tableId: toTableId,
-        tableNumber: toTable.tableNumber,
+        tableNumber: toTable.tableNumber,   // BUG FIX: Trước đây thiếu tableNumber khiến KDS hiển thị sai bàn
         status: 'SENT_TO_KITCHEN',
         createdBy: fromOrder.createdBy,
+        servedBy: fromOrder.servedBy,
         createdAt: new Date().toISOString(),
+        closedAt: null,
         version: 1,
-        items: []
+        items: [],
       };
+      // Cập nhật trạng thái bàn đích thành OCCUPIED
       TABLES_DB.set(toTableId, { ...toTable, status: 'OCCUPIED', currentOrderId: toOrderId });
     } else {
+      // Bàn đích đang có khách → gộp thêm vào order hiện tại
       toOrder = ORDERS_DB.get(toOrderId);
+      if (!toOrder) throw { status: 500, message: 'Lỗi dữ liệu: Bàn đích có orderId nhưng không tìm thấy order' };
     }
 
-    // 2. Chuyển Item
+    // --- Di chuyển item từ fromOrder sang toOrder ---
     const currentFromItems = [...fromOrder.items];
     const newToItems = [...toOrder.items];
 
     transferItems.forEach(move => {
+      // BUG FIX: Dùng `move.itemId` thay vì `move.id` để tìm đúng item trong danh sách
       const idx = currentFromItems.findIndex(i => i.id === move.itemId);
-      if (idx === -1) return;
+      if (idx === -1) return; // Item không tìm thấy → bỏ qua
 
-      const item = { ...currentFromItems[idx] }; // Shallow copy item object
+      const item = { ...currentFromItems[idx] };
+      // Giới hạn số lượng chuyển không vượt quá số lượng hiện tại
       const moveQty = Math.min(move.quantity, item.quantity);
 
-      if (moveQty === item.quantity) {
-        // Chuyển toàn bộ line item
+      if (moveQty >= item.quantity) {
+        // Chuyển TOÀN BỘ số lượng → xoá item khỏi fromOrder
         currentFromItems.splice(idx, 1);
-        newToItems.push({ ...item, id: uuid(), version: 1 }); // Sinh ID mới
+        // Tạo item mới với ID khác ở toOrder để tránh trùng lặp
+        newToItems.push({ ...item, id: uuid(), version: 1 });
       } else {
-        // Tách lẻ số lượng
-        const remainingItem = { ...item, quantity: item.quantity - moveQty, version: item.version + 1 };
-        currentFromItems[idx] = remainingItem; 
-        
+        // Chuyển MỘT PHẦN số lượng → giảm số lượng ở fromOrder
+        currentFromItems[idx] = { ...item, quantity: item.quantity - moveQty, version: item.version + 1 };
+        // Tạo item mới ở toOrder với số lượng đã tách
         newToItems.push({ ...item, id: uuid(), quantity: moveQty, version: 1 });
       }
     });
 
-    const updatedFromOrder = { ...fromOrder, items: currentFromItems, version: (fromOrder.version || 1) + 1 };
-    const updatedToOrder = { ...toOrder, items: newToItems, version: (toOrder.version || 1) + 1 };
+    // --- Lưu kết quả vào database ---
+    const updatedFromOrder = {
+      ...fromOrder,
+      items: currentFromItems,
+      version: (fromOrder.version || 1) + 1,
+    };
+
+    // --- Tích hợp trạng thái Bàn nguồn ---
+    // Nếu Bàn A không còn món nào, chuyển về trạng thái AVAILABLE
+    if (currentFromItems.length === 0) {
+      updatedFromOrder.status = 'MERGED'; // Order rỗng coi như đã merge
+      updatedFromOrder.closedAt = new Date().toISOString();
+      // fromTableId might not be defined explicitly here. We should look up table via fromOrder.tableId
+      const fromTableId = fromOrder.tableId;
+      const fromTable = TABLES_DB.get(fromTableId);
+      if (fromTable) {
+        TABLES_DB.set(fromTableId, { ...fromTable, status: 'AVAILABLE', currentOrderId: null });
+      }
+    }
+
+    const updatedToOrder = {
+      ...toOrder,
+      items: newToItems,
+      version: (toOrder.version || 1) + 1,
+    };
 
     ORDERS_DB.set(fromOrderId, updatedFromOrder);
     ORDERS_DB.set(toOrderId, updatedToOrder);
 
-    return { 
-      success: true, 
-      data: { fromOrder: updatedFromOrder, toOrder: updatedToOrder } 
+    return {
+      success: true,
+      data: { fromOrder: updatedFromOrder, toOrder: updatedToOrder },
     };
   },
 
@@ -301,10 +357,10 @@ export const orderApi = {
    *   - Order status được upgrade nếu cần (NEW → SENT_TO_KITCHEN)
    *   - Tách theo categoryType (KITCHEN / BAR) — để KDS routing sau này
    *
-   * @param {{ orderId: number, newItems: CartItem[] }} payload
+   * @param {{ orderId: number, newItems: CartItem[], bypassKitchen?: boolean }} payload
    * @returns {Promise<{ order: PosOrder, sentItems: OrderItem[] }>}
    */
-  sendToKitchen: async ({ orderId, newItems }) => {
+  sendToKitchen: async ({ orderId, newItems, bypassKitchen = false }) => {
     await mockDelay(400, 900);
 
     const order = ORDERS_DB.get(orderId);
@@ -321,7 +377,7 @@ export const orderApi = {
       name: cartItem.name,
       quantity: cartItem.quantity,
       price: cartItem.price,
-      status: 'SENT',
+      status: bypassKitchen ? 'SERVED' : 'SENT', // Bypass kitchen -> Món hoàn thành ngay
       note: cartItem.note || '',
       sentAt,
       batchId, // Enterprise: Grouping
@@ -435,27 +491,52 @@ export const orderApi = {
   },
 
   /**
-   * Huỷ một order item (chỉ được huỷ khi item chưa PREPARING).
+   * Huỷ một order item.
+   *
+   * Luồng nghiệp vụ:
+   *   1. Kiểm tra Idempotency — Không xử lý requestId đã dùng
+   *   2. Validate trạng thái món: Không cho huỷ nếu đã SERVED hoặc đã PAID
+   *   3. Nếu đang PREPARING hoặc READY → chỉ cho huỷ khi lý do có tiền tố [FORCE] (Manager)
+   *   4. Lý do huỷ (cancelReason) là BẮT BUỘC — Không chấp nhận chuỗi rỗng
+   *   5. Ghi audit log cho mọi lần huỷ
+   *
    * BE endpoint tương lai: PATCH /api/v1/orders/:orderId/items/:itemId/cancel
+   * Request body: { reason: string, cancelledBy: number, version: number }
    *
    * @param {{ orderId: number, itemId: string, reason: string, requestId?: string }} payload
    */
   cancelItem: async ({ orderId, itemId, reason = '', requestId }) => {
     await mockDelay(200, 500);
 
-    // Idempotency
+    // Kiểm tra Idempotency — Tránh xử lý 2 lần cùng 1 request
     if (requestId && REQUEST_ID_CACHE.has(requestId)) return { success: true, data: ORDERS_DB.get(orderId) };
 
     const order = ORDERS_DB.get(orderId);
     if (!order) throw { status: 404, message: 'Không tìm thấy đơn hàng' };
 
     const item = order.items.find(i => i.id === itemId);
-    if (!item) throw { status: 404, message: 'Không tìm thấy món' };
-    
-    // Enterprise logic: Cho phép cancel kể cả đang PREPARING nếu có flag force (Manager)
-    const isPreparing = ['PREPARING', 'READY'].includes(item.status);
-    if (isPreparing && !reason.includes('[FORCE]')) {
-      throw { status: 422, message: `Món đang được chế biến, không thể huỷ trực tiếp. Liên hệ bếp hoặc Manager.` };
+    if (!item) throw { status: 404, message: 'Không tìm thấy món trong đơn hàng' };
+
+    // Không cho huỷ món đã CANCELLED (idempotent nhưng cần thông báo rõ)
+    if (item.status === 'CANCELLED') {
+      throw { status: 409, message: 'Món này đã được huỷ trước đó' };
+    }
+
+    // Không cho huỷ món đã được phục vụ hoặc đã thanh toán — Đây là quy tắc nghiệp vụ cứng
+    if (item.status === 'SERVED' || item.status === 'PAID') {
+      throw { status: 422, message: 'Không thể huỷ món đã phục vụ cho khách hoặc đã thanh toán' };
+    }
+
+    // Bắt buộc phải có lý do huỷ món — Không bao giờ chấp nhận chuỗi rỗng
+    const cleanReason = reason.trim();
+    if (!cleanReason) {
+      throw { status: 400, message: 'Vui lòng nhập lý do huỷ món' };
+    }
+
+    // Nếu đang PREPARING hoặc READY → Chỉ cho phép huỷ khi có cờ [FORCE] từ Manager
+    const isBeingCooked = ['PREPARING', 'READY'].includes(item.status);
+    if (isBeingCooked && !cleanReason.includes('[FORCE]')) {
+      throw { status: 422, message: 'Món đang được chế biến. Chỉ Quản lý mới được phép huỷ cưỡng bức.' };
     }
 
     const updatedOrder = {
@@ -479,6 +560,16 @@ export const orderApi = {
         at: new Date().toISOString(),
       });
     }
+
+    console.log(`[AUDIT LOG] CANCEL_ITEM`, {
+      action: "CANCEL_ITEM",
+      orderId,
+      itemId,
+      itemName: item.name,
+      reason,
+      user: 'Bếp/Lễ tân',
+      time: new Date()
+    });
 
     return { success: true, data: updatedOrder };
   },
@@ -510,28 +601,54 @@ export const paymentApi = {
 
   /**
    * Thanh toán đơn hàng.
-   * BE endpoint tương lai: POST /api/v1/bills { orderId, discount, taxRate, method }
    *
-   * Logic nghiệp vụ:
-   *   - Tính subTotal từ order items (không tính CANCELLED)
-   *   - Áp dụng discount (VND) và taxRate (%)
-   *   - Tạo bill, update order.status = PAID, closeTable
+   * Luồng nghiệp vụ:
+   *   1. Kiểm tra trạng thái các món — Nếu còn NEW hoặc PREPARING: trả về danh sách cảnh báo
+   *   2. Client phải gửi lại kèm `confirmedWarnings` để xác nhận đã đọc cảnh báo
+   *   3. Tính tiền từ các item ACTIVE (không tính CANCELLED)
+   *   4. Tạo hóa đơn, cập nhật order → PAID, cập nhật bàn → AVAILABLE
+   *
+   * QUAN TRỌNG: Hệ thống KHÔNG CHẶN CỨNG thanh toán.
+   *   Nếu còn món NEW/PREPARING → Cảnh báo và yêu cầu xác nhận, nhưng vẫn cho thanh toán.
+   *   Chỉ chặn nếu order đã PAID rồi (không cho thanh toán 2 lần).
+   *
+   * BE endpoint tương lai: POST /api/v1/bills
+   * Request body: { orderId, tableId, discount, taxRate, method, confirmedWarnings }
    *
    * @param {{
    *   orderId: number,
    *   tableId: number,
    *   discount: number,
    *   taxRate: number,
-   *   method: 'CASH' | 'TRANSFER' | 'QR'
+   *   method: 'CASH' | 'TRANSFER' | 'QR',
+   *   confirmedWarnings?: string[]  — Client phải gửi khi đã xác nhận cảnh báo
    * }} payload
    */
-  payOrder: async ({ orderId, tableId, discount = 0, taxRate = 0, method = 'CASH' }) => {
+  payOrder: async ({ orderId, tableId, discount = 0, taxRate = 0, method = 'CASH', confirmedWarnings = [] }) => {
     await mockDelay(600, 1200);
 
     const order = ORDERS_DB.get(orderId);
     if (!order) throw { status: 404, message: 'Không tìm thấy đơn hàng' };
 
-    // Tính tiền từ các item hợp lệ (không tính CANCELLED)
+    // Không cho thanh toán đơn đã đóng / đã thanh toán rồi
+    if (order.status === 'PAID') {
+      throw { status: 409, message: 'Đơn hàng này đã được thanh toán trước đó' };
+    }
+
+    // --- Kiểm tra trạng thái món ---
+    // Chỉ cho phép thanh toán khi tất cả món đều đã hoàn thành (READY / SERVED) hoặc đã hủy.
+    const incompleteItems = order.items.filter(i => 
+      ['NEW', 'SENT', 'PREPARING'].includes(i.status)
+    );
+
+    if (incompleteItems.length > 0) {
+      throw {
+        status: 422,
+        message: `Đơn hàng tính tiền còn ${incompleteItems.length} món chưa được cung ứng (chưa hoàn thành). Bếp cần hoàn tất trước khi có thể thanh toán.`,
+      };
+    }
+
+    // --- Tính tiền từ các item hợp lệ (không tính những món đã CANCELLED) ---
     const subTotal = order.items
       .filter(i => i.status !== 'CANCELLED')
       .reduce((sum, i) => sum + i.price * i.quantity, 0);

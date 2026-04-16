@@ -184,19 +184,43 @@ export const useTableStore = create((set, get) => ({
   splitTable: async (fromOrderId, toTableId, transferItems) => {
     set({ loading: true });
     try {
-      const res = await orderApi.splitOrder({ fromOrderId, toTableId, transferItems });
+      const res = await tableApi.splitOrder({ fromOrderId, toTableId, transferItems });
       const { fromOrder, toOrder } = res.data;
 
-      // Cập nhật OrderStore
+      // 1. Cập nhật OrderStore ngay lập tức để CartPanel hiển thị món mới
       const orderStore = (await import('./useOrderStore')).useOrderStore.getState();
       orderStore.setOrder(fromOrder);
       orderStore.setOrder(toOrder);
 
-      // Cập nhật TableStore (bàn đích có thể đã chuyển từ AVAILABLE -> OCCUPIED)
-      await get().fetchTables();
+      // 2. Cập nhật TableStore thủ công (Optimistic update) để Sơ đồ bàn đổi màu ngay
+      set(state => ({
+        tables: state.tables.map(t => {
+          // Bàn nguồn: Nếu hết món thì về AVAILABLE, nếu còn thì vẫn OCCUPIED
+          if (t.id === fromOrder.tableId) {
+            const isEmpty = fromOrder.items.length === 0;
+            return { 
+              ...t, 
+              status: isEmpty ? 'AVAILABLE' : 'OCCUPIED', 
+              currentOrderId: isEmpty ? null : fromOrder.id 
+            };
+          }
+          // Bàn đích: Chắc chắn là OCCUPIED vì vừa nhận món
+          if (t.id === toOrder.tableId) {
+            return { 
+              ...t, 
+              status: 'OCCUPIED', 
+              currentOrderId: toOrder.id 
+            };
+          }
+          return t;
+        }),
+        loading: false
+      }));
+
+      // 3. fetchTables ở background để đảm bảo đồng bộ tuyệt đối với Server (nếu cần)
+      get().fetchTables();
 
       toast.success(`Đã tách món sang bàn ${toOrder.tableNumber}`);
-      set({ loading: false });
       return true;
     } catch (err) {
       set({ loading: false });

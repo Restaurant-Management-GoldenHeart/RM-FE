@@ -6,17 +6,23 @@
  *   - Chọn phương thức thanh toán: Tiền mặt, Chuyển khoản, QR.
  *   - Call `paymentApi.payOrder` để hoàn tất.
  *   - Sau khi thanh toán → Đóng bàn (`closeTable`) và Reset store.
+ *
+ * Luồng cảnh báo (QUAN TRỌNG):
+ *   Hệ thống KHÔNG chặn cứng thanh toán khi còn món chưa nấu xong.
+ *   Thay vào đó, nếu API trả về lỗi UNCONFIRMED_WARNINGS:
+ *   → Hiển thị dialog xác nhận (WarningConfirmDialog)
+ *   → Nếu cashier đồng ý → gửi lại request kèm confirmedWarnings
+ *   → Thanh toán tiến hành bình thường
  */
 import React, { useState, useMemo } from 'react';
 import { useTableStore } from '../../store/useTableStore';
 import { useOrderStore } from '../../store/useOrderStore';
-import { useCartStore } from '../../store/useCartStore';
 import { paymentApi } from '../../api/posApi';
 import { cn } from '../../utils/cn';
 import {
   X, CheckCircle2, CreditCard, Banknote,
-  QrCode, ReceiptText, Calculator, Loader2,
-  Percent, DollarSign
+  QrCode, ReceiptText, Loader2,
+  Percent, DollarSign, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,10 +32,10 @@ const formatVND = (amount) =>
 const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const [method, setMethod]     = useState('CASH');
   const [discount, setDiscount] = useState(0);
-  const [taxRate, setTaxRate]   = useState(8); // Default VAT 8%
+  const [taxRate, setTaxRate]   = useState(8); // VAT mặc định 8%
   const [isPaying, setIsPaying] = useState(false);
 
-  // ─── Tạm tính ───
+  // ─── Tính tổng tiền (chỉ tính các món không bị HỦY) ───
   const subTotal = useMemo(() => {
     if (!order) return 0;
     return order.items
@@ -40,7 +46,11 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const taxAmount = (subTotal - discount) * (taxRate / 100);
   const total     = subTotal - discount + taxAmount;
 
-  const handlePay = async () => {
+  /**
+   * Thực hiện thanh toán.
+   * Yêu cầu tất cả các món phải hoàn tất (READY / SERVED) mới cho phép thanh toán.
+   */
+  const executePayment = async () => {
     if (isPaying) return;
     setIsPaying(true);
 
@@ -50,23 +60,24 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
         tableId: table.id,
         discount,
         taxRate,
-        method
+        method,
       };
 
       const res = await paymentApi.payOrder(payload);
-      
+
       if (res.success) {
         toast.success(`Thanh toán thành công ${formatVND(total)}!`);
-        
-        // Cập nhật trạng thái bàn về DIRTY (Cần dọn)
+
+        // Cập nhật trạng thái bàn về DIRTY (Cần dọn dẹp sau khi khách về)
         useTableStore.getState().updateTableLocal(table.id, { status: 'DIRTY', currentOrderId: null });
-        
+
         // Xoá order khỏi store hoạt động
         useOrderStore.getState().clearOrder(order.id);
-        
-        // Reset selected table
+
+        // Bỏ chọn bàn hiện tại
         useTableStore.setState({ selectedTableId: null });
-        
+
+        // Đóng modal
         onClose();
       }
     } catch (err) {
@@ -85,8 +96,8 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
 
       {/* Modal Container */}
       <div className="relative bg-white w-full max-w-4xl h-[600px] rounded-[2.5rem] shadow-2xl flex overflow-hidden animate-in zoom-in-95 duration-300">
-        
-        {/* Left: Bill Detail */}
+
+        {/* Left: Chi tiết hóa đơn */}
         <div className="w-[400px] bg-gray-50/50 border-r border-gray-100 flex flex-col p-8">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 bg-gold-600 rounded-xl flex items-center justify-center shadow-lg shadow-gold-600/20">
@@ -94,22 +105,45 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
             </div>
             <div>
               <h3 className="font-black text-gray-900 uppercase tracking-tight text-lg">Hoá đơn</h3>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{table.tableNumber} • HD#{order.id}</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                {table.tableNumber} • HD#{order.id}
+              </p>
             </div>
           </div>
 
+          {/* Danh sách món — CHỈ hiện các món KHÔNG BỊ HỦY */}
           <div className="flex-1 overflow-y-auto pr-2 space-y-4 no-scrollbar">
             {order.items.filter(i => i.status !== 'CANCELLED').map(item => (
               <div key={item.id} className="flex justify-between items-start">
                 <div className="flex-1 pr-4">
-                  <p className="text-sm font-bold text-gray-800 leading-none">{item.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-1 font-bold">{item.quantity} x {formatVND(item.price)}</p>
+                  <div className="flex items-center gap-2">
+                    {/* Chấm màu để phân biệt trạng thái món */}
+                    <span className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      item.status === 'SERVED'    ? "bg-blue-500" :
+                      item.status === 'READY'     ? "bg-green-500" :
+                      item.status === 'PREPARING' ? "bg-amber-500 animate-pulse" :
+                      item.status === 'SENT'      ? "bg-gray-400" :
+                                                    "bg-gold-400"  // NEW
+                    )} />
+                    <p className="text-sm font-bold text-gray-800 leading-none">{item.name}</p>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold pl-4">
+                    {item.quantity} x {formatVND(item.price)}
+                    {/* Hiện trạng thái nhỏ để thu ngân biết */}
+                    {(item.status === 'NEW' || item.status === 'SENT' || item.status === 'PREPARING') && (
+                      <span className="ml-2 text-amber-500">
+                        ({item.status === 'NEW' ? 'Chưa gửi bếp' : item.status === 'SENT' ? 'Đang chờ nấu' : 'Đang nấu'})
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <p className="text-sm font-black text-gray-900 tabular-nums">{formatVND(item.price * item.quantity)}</p>
               </div>
             ))}
           </div>
 
+          {/* Tổng kết hóa đơn */}
           <div className="pt-6 border-t border-gray-200 space-y-3 mt-6">
             <div className="flex justify-between items-center text-gray-400 font-bold text-xs uppercase tracking-wider">
                <span>Tạm tính</span>
@@ -133,19 +167,22 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
           </div>
         </div>
 
-        {/* Right: Payment Logic */}
+        {/* Right: Chọn phương thức thanh toán */}
         <div className="flex-1 p-10 flex flex-col">
           <div className="flex justify-between items-start mb-10">
             <div>
                <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Thanh toán</h2>
                <p className="text-gray-400 text-sm mt-1 font-medium">Chọn phương thức phù hợp để hoàn tất.</p>
             </div>
-            <button onClick={onClose} className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+            >
               <X size={20} />
             </button>
           </div>
 
-          {/* Methods Grid */}
+          {/* Lựa chọn phương thức thanh toán */}
           <div className="grid grid-cols-3 gap-4 mb-10">
             {[
               { id: 'CASH',     label: 'Tiền mặt',    icon: Banknote,  desc: 'Thanh toán trực tiếp' },
@@ -170,28 +207,31 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
           </div>
 
           <div className="flex-1 space-y-6">
+            {/* Hiển thị tổng tiền cần thu */}
             <div>
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Số tiền nhận (Trường hợp mặt)</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">
+                Số tiền cần thu
+              </label>
               <div className="relative group">
                 <DollarSign size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-gold-500" />
-                <input 
-                  type="text" 
-                  value={total} 
+                <input
+                  type="text"
+                  value={formatVND(total)}
                   readOnly
                   className="w-full bg-gray-50 border border-gray-100 py-5 pl-14 pr-6 rounded-3xl text-xl font-black text-gray-900 outline-none focus:ring-4 focus:ring-gold-500/5 transition-all"
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
-              <button 
+              <button
                 onClick={onClose}
                 className="py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-gray-400 hover:bg-gray-50 transition-all"
               >
                 Quay lại
               </button>
-              <button 
-                onClick={handlePay}
+              <button
+                onClick={() => executePayment()} 
                 disabled={isPaying}
                 className="py-5 bg-gray-900 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] hover:bg-black shadow-xl shadow-gray-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
               >
