@@ -7,6 +7,10 @@
  *   - Status tracking từng món: SENT, PREPARING, READY, SERVED.
  *   - Ghi chú riêng cho từng món.
  *   - Tính toán Tổng tạm tính, VAT, Khuyến mãi (giả lập).
+ *
+ * PRODUCTION UPGRADE (Stock Check UI):
+ *   - DraftItemRow: Hiển thị border đỏ & cảnh báo nguyên liệu nếu món thiếu hàng.
+ *   - Nút "Gửi bếp": Có 2 trạng thái loading: isCheckingStock và isSending.
  */
 import React, { useState, useMemo } from 'react';
 import { useTableStore } from '../store/useTableStore';
@@ -17,7 +21,7 @@ import {
   Minus, Plus, Trash2, ShoppingBag,
   Receipt, ChefHat, Check, Loader2,
   AlertCircle, MessageSquare, Clock, X,
-  AlertTriangle
+  AlertTriangle, PackageX
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PaymentModal from './pos/PaymentModal';
@@ -27,20 +31,50 @@ const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
 
 // ─── Draft Item Row (Món mới chưa gửi bếp) ───
+//
+// UPGRADE: Hỗ trợ hiển thị cảnh báo thiếu nguyên liệu.
+// Khi kiểm tra kho phát hiện monk thiếu nguyên liệu,
+// useCartStore sẽ lưu vào state.insufficientItems.
+// Component này đọc state đó để quyết định border và warning text.
 const DraftItemRow = ({ tableId, item }) => {
   const updateQuantity = useCartStore(s => s.updateQuantity);
   const updateNote = useCartStore(s => s.updateNote);
   const [showNote, setShowNote] = useState(false);
 
+  // Lấy thông tin thiếu nguyên liệu của món này (nếu có).
+  // Tại sao select từng món thay vì lấy toàn bộ Map?
+  //   → Tránh re-render toàn bộ giỏ hàng mỗi khi bất kỳ món nào thay đổi.
+  //   → Mỗi DraftItemRow chỉ rerender khi ĐÚNG món đó bị ảnh hưởng.
+  const shortages = useCartStore(s => s.insufficientItems[item.menuItemId] ?? null);
+  const hasShortage = shortages !== null && shortages.length > 0;
+
   return (
-    <div className="flex flex-col gap-2 p-4 bg-white rounded-2xl border border-gold-100 shadow-sm animate-in slide-in-from-right duration-300">
+    <div className={cn(
+      // Transition smooth khi chuyển từ normal sang lỗi và ngược lại
+      "flex flex-col gap-2 p-4 rounded-2xl border shadow-sm animate-in slide-in-from-right duration-300 transition-all",
+      hasShortage
+        // Khi thiếu hàng: border đỏ, nền đỏ nhạt để nhân viên nhận ra ngay
+        ? "bg-red-50/60 border-red-300 ring-1 ring-red-200"
+        // Bình thường: border vàng nhạt (màu thương hiệu)
+        : "bg-white border-gold-100"
+    )}>
       <div className="flex items-center gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-gold-400" />
-            <h5 className="font-black text-gray-900 text-sm truncate uppercase tracking-tight">{item.name}</h5>
+            {/* Dot màu thay đổi theo trạng thái thiếu hàng */}
+            <span className={cn(
+              "w-2 h-2 rounded-full shrink-0",
+              hasShortage ? "bg-red-500 animate-pulse" : "bg-gold-400"
+            )} />
+            <h5 className={cn(
+              "font-black text-sm truncate uppercase tracking-tight",
+              hasShortage ? "text-red-700" : "text-gray-900"
+            )}>{item.name}</h5>
           </div>
-          <p className="text-xs font-black text-gold-600 mt-1">{formatVND(item.price)}</p>
+          <p className={cn(
+            "text-xs font-black mt-1",
+            hasShortage ? "text-red-400" : "text-gold-600"
+          )}>{formatVND(item.price)}</p>
         </div>
 
         <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-1 border border-gray-100">
@@ -79,6 +113,24 @@ const DraftItemRow = ({ tableId, item }) => {
           </button>
         </div>
       </div>
+
+      {/*
+        Hiển thị cảnh báo thiếu nguyên liệu bên dưới tên món.
+        Lý do đặt ở đây (không phải toast): Giúp nhân viên nhìn thấy
+        ngay MON NÀO bị ảnh hưởng mà không cần nhớ nội dung toast.
+      */}
+      {hasShortage && (
+        <div className="mt-1 flex flex-col gap-1 px-1">
+          {shortages.map((s, idx) => (
+            <div key={idx} className="flex items-center gap-1.5">
+              <PackageX size={11} className="text-red-500 shrink-0" />
+              <p className="text-[10px] font-bold text-red-600">
+                Hết <span className="font-black">{s.name}</span>: cần {s.needed}{s.unit ? ` ${s.unit}` : ''}, còn {s.inStock}{s.unit ? ` ${s.unit}` : ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showNote && (
         <input
@@ -221,8 +273,20 @@ export const CartPanel = () => {
 
   const draftItems = useCartStore(s => s.draftItems[selectedTableId] ?? EMPTY_DRAFT);
   const draftTotal = useMemo(() => draftItems.reduce((s, i) => s + i.price * i.quantity, 0), [draftItems]);
+
+  // Lấy cả 2 state loading riêng biệt:
+  //   isSending       → đang gọi API gửi bếp
+  //   isCheckingStock → đang chạy bước kiểm tra kho (trước khi gửi)
+  // Tách 2 state để hiển thị thông báo đúng cho nhân viên:
+  //   "Đang kiểm tra kho..." vs "Đang gửi bếp..."
   const isSending = useCartStore(s => s.isSending);
+  const isCheckingStock = useCartStore(s => s.isCheckingStock);
   const sendToKitchen = useCartStore(s => s.sendToKitchen);
+
+  // Kiểm tra có bất kỳ món nào đang thiếu nguyên liệu không
+  // Dùng để hiển thị banner cảnh báo ở đầu phần draft
+  const insufficientItems = useCartStore(s => s.insufficientItems);
+  const hasAnyShortage = Object.keys(insufficientItems).length > 0;
 
   const orderId = table?.currentOrderId;
   const order = useOrderStore(s => orderId ? s.orders[orderId] : null);
@@ -240,6 +304,10 @@ export const CartPanel = () => {
     if (!order) return false;
     return order.items.some(i => !['SERVED', 'CANCELLED'].includes(i.status));
   }, [order]);
+
+  // isProcessing: Gộp cả 2 trạng thái loading vào 1 flag để disable nút
+  // Tại sao gộp? Nhân viên không nên nhấn lại khi đang check hoặc đang gửi.
+  const isProcessing = isSending || isCheckingStock;
 
   const handleSend = async () => {
     await sendToKitchen({ tableId: selectedTableId });
@@ -299,7 +367,13 @@ export const CartPanel = () => {
         {draftItems.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-2">
-              <h4 className="text-[10px] font-black text-gold-600 uppercase tracking-widest">Món mới chọn ({draftItems.length})</h4>
+              <h4 className={cn(
+                "text-[10px] font-black uppercase tracking-widest",
+                // Đổi màu tiêu đề khi có món thiếu nguyên liệu → nhân viên chú ý ngay
+                hasAnyShortage ? "text-red-500" : "text-gold-600"
+              )}>
+                {hasAnyShortage ? '⚠️ Cần kiểm tra kho' : `Món mới chọn (${draftItems.length})`}
+              </h4>
               <button
                 onClick={() => useCartStore.getState().clearDraft(selectedTableId)}
                 className="text-[10px] font-bold text-red-400 hover:text-red-500 uppercase"
@@ -307,6 +381,20 @@ export const CartPanel = () => {
                 Xoá hết
               </button>
             </div>
+
+            {/*
+              Banner cảnh báo tổng hợp khi có nhiều món thiếu nguyên liệu.
+              Hiển thị thêm nhắc nhở để nhân viên biết phải làm gì.
+            */}
+            {hasAnyShortage && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                <PackageX size={14} className="text-red-500 mt-0.5 shrink-0" />
+                <p className="text-[10px] font-bold text-red-700 leading-tight">
+                  Một số món thiếu nguyên liệu. Vui lòng xóa bớt hoặc liên hệ quản lý bổ sung kho.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               {draftItems.map(item => <DraftItemRow key={item.menuItemId} tableId={selectedTableId} item={item} />)}
             </div>
@@ -365,21 +453,45 @@ export const CartPanel = () => {
         )}
 
         <div className="grid grid-cols-2 gap-3">
+          {/*
+            Nút Gửi bếp có 3 trạng thái:
+            1. Normal: Nền đen, icon ChefHat vàng
+            2. isCheckingStock: Nền xanh dương nhạt, icon Loader + text "Kiểm tra kho..."
+            3. isSending: Nền đen mờ, icon Loader
+            Tại sao phân biệt 2 trạng thái loading?
+              → Để nhân viên hiểu hệ thống đang làm GÌ, tránh nhấn lại do tưởng bị treo.
+          */}
           <button
             onClick={handleSend}
-            disabled={draftItems.length === 0 || isSending}
+            disabled={draftItems.length === 0 || isProcessing}
             className={cn(
               "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
-              draftItems.length > 0 && !isSending ? "bg-gray-900 text-white hover:bg-black shadow-lg shadow-gray-900/10" : "bg-gray-50 text-gray-200"
+              isCheckingStock
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                : draftItems.length > 0 && !isProcessing
+                  ? "bg-gray-900 text-white hover:bg-black shadow-lg shadow-gray-900/10"
+                  : "bg-gray-50 text-gray-200"
             )}
           >
-            {isSending ? <Loader2 size={18} className="animate-spin" /> : <ChefHat size={18} className={draftItems.length > 0 ? "text-gold-500" : "text-gray-200"} />}
-            Gửi bếp
+            {isCheckingStock ? (
+              // Đang kiểm tra kho
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                <span>Kiểm tra kho...</span>
+              </>
+            ) : isSending ? (
+              // Đang gửi API
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              // Trạng thái bình thường
+              <ChefHat size={18} className={draftItems.length > 0 ? "text-gold-500" : "text-gray-200"} />
+            )}
+            {!isCheckingStock && 'Gửi bếp'}
           </button>
 
           <button
             onClick={handlePaymentClick}
-            disabled={(!table?.currentOrderId && draftItems.length === 0) || isSending || hasUnservedItems || draftItems.length > 0}
+            disabled={(!table?.currentOrderId && draftItems.length === 0) || isProcessing || hasUnservedItems || draftItems.length > 0}
             className={cn(
               "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
               (table?.currentOrderId && order?.items?.length > 0 && !hasUnservedItems && draftItems.length === 0)
