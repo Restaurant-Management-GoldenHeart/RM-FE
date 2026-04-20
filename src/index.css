@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* GoldenHeart Gold - #CA8A04 (Warm Gold) */
+  --color-gold-50: #fefce8;
+  --color-gold-100: #fef9c3;
+  --color-gold-200: #fef08a;
+  --color-gold-300: #fde047;
+  --color-gold-400: #facc15;
+  --color-gold-500: #eab308;
+  --color-gold-600: #ca8a04;
+  --color-gold-700: #a16207;
+  --color-gold-800: #854d0e;
+  --color-gold-900: #713f12;
+  --color-gold-950: #422006;
+
+  /* Re-alias primary to gold for consistency */
+  --color-primary-50: var(--color-gold-50);
+  --color-primary-100: var(--color-gold-100);
+  --color-primary-200: var(--color-gold-200);
+  --color-primary-300: var(--color-gold-300);
+  --color-primary-400: var(--color-gold-400);
+  --color-primary-500: var(--color-gold-500);
+  --color-primary-600: var(--color-gold-600);
+  --color-primary-700: var(--color-gold-700);
+  --color-primary-800: var(--color-gold-800);
+  --color-primary-900: var(--color-gold-900);
+  --color-primary-950: var(--color-gold-950);
+}
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #fafafb; /* Lighter, warmer gray-50 */
+  color: #111827; /* Deep Charcoal for main text */
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ── SCROLLBAR ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(202, 138, 4, 0.15); /* Subtle Gold based scrollbar */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(202, 138, 4, 0.35);
+}
+
+/* ── ANIMATIONS ────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── UI COMPONENTS ─────────────────────────────────────────────── */
+.premium-card {
+  background: #ffffff;
+  border: 1px solid #f3f4f6; /* Very subtle border */
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.01);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-card-hover:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+  border-color: #ca8a0422;
+  transform: translateY(-2px);
+}
+
+/* Data Table Styles (Clean & High Contrast) */
+.data-table-container {
+  @apply overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm;
+}
+
+.data-table th {
+  @apply py-4 px-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50;
+}
+
+.data-table td {
+  @apply py-4 px-6 text-sm text-gray-800 border-t border-gray-50;
+}
+
+.data-table tr:hover {
+  @apply bg-gold-50/20 transition-colors;
+}
+
+/* Common Text Utilities */
+.text-premium-gold {
+  color: #ca8a04;
+}
+.bg-premium-gold {
+  background-color: #ca8a04;
+}
