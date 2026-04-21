@@ -56,6 +56,7 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
   const insufficientStockIds = useKitchenStore(s => s.insufficientStockIds);
 
   const menuItems       = useKitchenStore(s => s.menuItems);
+  const inventoryMap    = useKitchenStore(s => s.inventoryMap);
   const expandedIds     = useKitchenStore(s => s.expandedIds);
   const toggleExpand    = useKitchenStore(s => s.toggleExpand);
   const cancelItem      = useKitchenStore(s => s.cancelItem);
@@ -123,6 +124,31 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
 
   // Tổng hợp trạng thái loading cho nút chính
   const isActionLoading = isCooking || isCompletingLocal;
+
+  /**
+   * getUnitName — Lấy đơn vị hiển thị chuẩn cho nguyên liệu
+   * Ưu tiên: Inventory (nguồn DB) > Recipe Fallback > Mặc định
+   */
+  const getUnitName = (recipe) => {
+    if (!recipe) return 'đơn vị';
+
+    // Normalize ID để tránh mismatch giữa string/number từ API khác nhau
+    const ingredientId = String(recipe.ingredientId);
+    const inventoryItem = inventoryMap[ingredientId];
+
+    // 1. Ưu tiên tuyệt đối từ Inventory Map (nguồn DB chuẩn)
+    if (inventoryItem?.unitName) {
+      return inventoryItem.unitName;
+    }
+
+    // 2. Fallback về unitName có sẵn trong recipe (nếu có)
+    if (recipe.unitName) {
+      return recipe.unitName;
+    }
+
+    // 3. Mặc định cuối cùng
+    return 'đơn vị';
+  };
 
   return (
     <div
@@ -242,7 +268,7 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
                     • {recipe.ingredientName || 'Nguyên liệu ' + recipe.ingredientId}
                   </span>
                   <span className="text-gray-800 font-bold tabular-nums">
-                    {recipe.quantity * item.quantity} {recipe.unitName || 'đơn vị'}
+                    {recipe.quantity * item.quantity} {getUnitName(recipe)}
                   </span>
                 </div>
               ))}

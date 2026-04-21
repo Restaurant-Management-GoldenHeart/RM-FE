@@ -159,13 +159,15 @@ export default function KitchenPage() {
   const completeOrderItem  = useKitchenStore(s => s.completeOrderItem);
   const startCookingItem   = useKitchenStore(s => s.startCookingItem);
   const fetchMenuItems     = useKitchenStore(s => s.fetchMenuItems);
+  const fetchInventoryItems = useKitchenStore(s => s.fetchInventoryItems);
 
   // State mở/đóng Modal lịch sử
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // ── Khởi tạo & Polling ───────────────────────────────────────────────────
   useEffect(() => {
-    fetchMenuItems(); // Tải menu items một lần duy nhất để phục vụ tra cứu nguyên liệu
+    fetchMenuItems();      // Tải menu items
+    fetchInventoryItems(); // Tải inventory nguồn để map đơn vị (FE Upgrade)
     startPolling();
     return () => stopPolling();
   }, []);

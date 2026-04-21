@@ -26,6 +26,7 @@ import { create } from 'zustand';
 import toast from 'react-hot-toast';
 import kitchenServiceApi from '../services/api/kitchenServiceApi';
 import { mapKitchenItems } from '../services/mapper/kitchenMapper';
+import { inventoryApi } from '../api/inventoryApi';
 import { useAuthStore } from './useAuthStore';
 
 // Lưu tham chiếu interval để có thể clear khi cần
@@ -90,6 +91,14 @@ export const useKitchenStore = create((set, get) => ({
    * @type {Map<number, string>}
    */
   insufficientStockIds: new Map(),
+
+  // --- Inventory State for Ingredient Unit Mapping ---
+  inventoryItems: [],
+  /** Lookup nhanh: id -> inventoryItem */
+  inventoryMap: {},
+  isLoadingInventory: false,
+  inventoryError: null,
+  lastFetchedAt: null,
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
@@ -465,6 +474,65 @@ export const useKitchenStore = create((set, get) => ({
 
     // Gọi lại logic nấu bình thường
     return get().startCookingItem(orderItemId);
+  },
+
+  /**
+   * fetchInventoryItems — Tải toàn bộ inventory để map đơn vị nguyên liệu.
+   * Sử dụng O(1) lookup map và logic cache 5 phút để tối ưu performance.
+   * THIẾT KẾ: FE-ONLY UPGRADE - Lấy nguồn DB để hiện đúng đơn vị.
+   */
+  fetchInventoryItems: async () => {
+    try {
+      const now = Date.now();
+      const CACHE_TTL = 5 * 60 * 1000; // 5 phút
+
+      const { inventoryItems, lastFetchedAt } = get();
+
+      // Chỉ fetch nếu chưa có data hoặc cache đã hết hạn
+      if (inventoryItems.length > 0 && lastFetchedAt && (now - lastFetchedAt < CACHE_TTL)) {
+        console.log('[KITCHEN_APP] Sử dụng inventory cache (TTL: 5m)');
+        return;
+      }
+
+      set({ isLoadingInventory: true, inventoryError: null });
+      console.log('[KITCHEN_APP] Bắt đầu tải inventory dữ liệu nguồn...');
+
+      // Lấy danh sách nguyên liệu (max 1000 để bao phủ toàn bộ menu)
+      const res = await inventoryApi.getInventoryItems({
+        page: 0,
+        size: 1000,
+      });
+
+      const items = res?.data?.content || [];
+
+      /**
+       * Tạo lookup map O(1) để tránh duyệt mảng khi render danh sách món
+       * key = ingredientId (string), value = inventoryItem object
+       */
+      const map = {};
+      items.forEach((item) => {
+        const id = item.inventoryId || item.id;
+        if (id) {
+          map[String(id)] = item;
+        }
+      });
+
+      set({
+        inventoryItems: items,
+        inventoryMap: map,
+        isLoadingInventory: false,
+        lastFetchedAt: now,
+      });
+
+      console.log(`[KITCHEN_APP] Đã tải ${items.length} nguyên liệu, map O(1) sẵn sàng.`);
+
+    } catch (error) {
+      console.error('[API_ERROR][KITCHEN_INVENTORY] Lỗi tải inventory:', error);
+      set({
+        isLoadingInventory: false,
+        inventoryError: error?.message || 'Không thể tải dữ liệu kho',
+      });
+    }
   },
 
 }));
