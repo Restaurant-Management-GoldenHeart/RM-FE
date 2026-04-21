@@ -26,10 +26,13 @@ const ProductCard = ({ product }) => {
 
   const handleAdd = () => {
     const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
-    if (!selectedTableId || (table?.status !== 'OCCUPIED' && table?.status !== 'AVAILABLE')) {
+    // Cho phép AVAILABLE, OCCUPIED và RESERVED (khách đặt trước đã check-in)
+    // BE tự chuyển RESERVED → OCCUPIED khi order đầu tiên được tạo
+    if (!selectedTableId || !['OCCUPIED', 'AVAILABLE', 'RESERVED'].includes(table?.status)) {
       toast.error('⚠️ Bàn chưa sẵn sàng phục vụ!');
       return;
     }
+
     addItem(selectedTableId, product);
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 400);

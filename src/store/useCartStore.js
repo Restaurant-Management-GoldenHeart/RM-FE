@@ -286,11 +286,19 @@ export const useCartStore = create((set, get) => ({
     const tableState = useTableStore.getState();
     const table = tableState.tables.find(t => t.id === tableId);
 
-    // Chặn nếu bàn trống VÀ chưa được bấm "Mở bàn" (selected)
+    // Chặn nếu bàn TRỐNG VÀ chưa được chọn (chưa mở bàn)
+    // KHÔNG chặn bàn RESERVED — khách đã check-in, nhân viên được phép thêm món
+    // BE sẽ tự chuyển RESERVED → OCCUPIED khi order đầu tiên được tạo
     if (table && table.status === 'AVAILABLE' && tableState.selectedTableId !== tableId) {
       toast.error('⚠️ Hãy mở bàn để chọn món!');
       return;
     }
+    // Chặn các trạng thái không hợp lệ (CLEANING, MERGED, v.v.)
+    if (table && !['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(table.status)) {
+      toast.error('⚠️ Bàn này hiện không thể gọi món!');
+      return;
+    }
+
 
     set(state => {
       const tableCart = state.draftItems[tableId] ?? [];
@@ -384,6 +392,51 @@ export const useCartStore = create((set, get) => ({
       const { [tableId]: _removed, ...rest } = state.draftItems;
       // Cũng xóa data thiếu hàng vì giỏ hàng đã được clear
       return { draftItems: rest, insufficientItems: {} };
+    });
+  },
+
+  /**
+   * mergeDraftItems — Gộp giỏ hàng từ bàn nguồn sang bàn đích.
+   * ❗ CASE: Khi gộp bàn ảo, món chưa gửi bếp cũng phải được gom về bàn chính.
+   * Logic: Nếu trùng menuItemId và note -> cộng dồn số lượng.
+   * 
+   * @param {number} sourceTableId - Bàn con bị gộp
+   * @param {number} targetTableId - Bàn chính nhận món
+   */
+  mergeDraftItems: (sourceTableId, targetTableId) => {
+    const state = get();
+    const sourceItems = state.draftItems[sourceTableId] || [];
+    if (sourceItems.length === 0) return;
+
+    set(state => {
+      const targetItems = [...(state.draftItems[targetTableId] || [])];
+
+      sourceItems.forEach(sItem => {
+        // Tìm món tương đương ở bàn đích (cùng ID món và cùng ghi chú)
+        const existIdx = targetItems.findIndex(tItem => 
+          tItem.menuItemId === sItem.menuItemId && 
+          (tItem.note || '').trim() === (sItem.note || '').trim()
+        );
+
+        if (existIdx !== -1) {
+          // Nếu trùng -> Cộng dồn số lượng
+          targetItems[existIdx] = {
+            ...targetItems[existIdx],
+            quantity: targetItems[existIdx].quantity + sItem.quantity
+          };
+        } else {
+          // Nếu mới -> Thêm vào mảng
+          targetItems.push({ ...sItem });
+        }
+      });
+
+      // Cập nhật giỏ hàng bàn đích và XÓA giỏ hàng bàn nguồn
+      const newDraftItems = { ...state.draftItems };
+      newDraftItems[targetTableId] = targetItems;
+      delete newDraftItems[sourceTableId];
+
+      console.log(`[CartStore] Đã gộp ${sourceItems.length} món từ bàn ${sourceTableId} sang ${targetTableId}`);
+      return { draftItems: newDraftItems };
     });
   },
 
@@ -666,12 +719,13 @@ export const useCartStore = create((set, get) => ({
       const tableCheckRes = await tableApi.getTables(branchId);
       const latestTable = tableCheckRes?.data?.find(t => t.id === tableId);
 
-      if (latestTable && latestTable.status !== 'AVAILABLE' && latestTable.status !== 'OCCUPIED') {
+      if (latestTable && !['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(latestTable.status)) {
         toast.error('Bàn hiện không thể gọi món (Trạng thái đã thay đổi)!', { position: 'bottom-center' });
         await useTableStore.getState().fetchTables(branchId);
         set({ isSending: false });
         return false;
       }
+
 
       // Chuyển đổi CartItem sang format BE yêu cầu
       const beItems = items.map(item => ({

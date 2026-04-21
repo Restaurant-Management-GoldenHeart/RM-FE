@@ -339,9 +339,15 @@ export const CartPanel = () => {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <div className={cn("w-2 h-2 rounded-full", table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+              <div className={cn("w-2 h-2 rounded-full",
+                table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse"
+                : table?.status === 'RESERVED' ? "bg-blue-500"
+                : "bg-emerald-500"
+              )} />
               <span className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em]">
-                {table?.status === 'OCCUPIED' ? 'Bàn đang bận' : 'Bàn trống'}
+                {table?.status === 'OCCUPIED' ? 'Bàn đang bận'
+                : table?.status === 'RESERVED' ? 'Khách đặt trước'
+                : 'Bàn trống'}
               </span>
             </div>
             <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
@@ -353,9 +359,14 @@ export const CartPanel = () => {
               )}
             </h3>
           </div>
-          {table?.status === 'AVAILABLE' && (
-            <div className="px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-xl border border-emerald-100">
-              SẴN SÀNG PHỤC VỤ
+          {(table?.status === 'AVAILABLE' || table?.status === 'RESERVED') && (
+            <div className={cn(
+              "px-4 py-2 text-[10px] font-black rounded-xl border",
+              table?.status === 'RESERVED'
+                ? "bg-blue-50 text-blue-600 border-blue-100"
+                : "bg-emerald-50 text-emerald-600 border-emerald-100"
+            )}>
+              {table?.status === 'RESERVED' ? 'ĐẶT TRƯỚC' : 'SẴN SÀNG PHỤC VỤ'}
             </div>
           )}
         </div>

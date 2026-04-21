@@ -22,7 +22,7 @@ import toast from 'react-hot-toast';
 
 const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
   const tables    = useTableStore(s => s.tables);
-  const splitTable = useTableStore(s => s.splitTable);
+  const smartSplitTable = useTableStore(s => s.smartSplitTable);
 
   // Lấy order hiện tại của bàn nguồn để hiển thị danh sách món
   const order = useOrderStore(s =>
@@ -109,8 +109,8 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
     const transferPayload = payload
       || Object.entries(selectedItems).map(([itemId, quantity]) => ({ itemId, quantity }));
 
-    // Gọi store action — store sẽ tự tìm fromTableId từ fromOrderId
-    const success = await splitTable(
+    // Gọi store action — store sẽ tự quản lý transaction (Bridge Table nếu cần)
+    const success = await smartSplitTable(
       fromTable.id,       // fromTableId (TRUYỀN TRỰC TIẾP ID BÀN)
       Number(toTableId),  // toTableId
       transferPayload     // [{ id, quantity }]

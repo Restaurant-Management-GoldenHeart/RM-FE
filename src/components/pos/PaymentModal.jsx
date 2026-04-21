@@ -148,26 +148,34 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       // ─── Thanh toán thành công: cập nhật UI ──────────────────────────
       toast.success(`🎉 Thanh toán thành công ${formatVND(total)}!`);
 
-      // 1. Dọn sạch KDS: Xóa tất cả món của order này khỏi màn hình bếp
-      // ⇒ Bếp sẽ không còn thấy các món của bàn này sau khi đã thanh toán xong
+      // 1. Dọn sạch KDS
       useKitchenStore.getState().clearOrderFromKitchen(order.id);
 
-      // 2. Cập nhật trạng thái bàn về CLEANING (chuẩn Master Plan)
+      // 2. Cập nhật trạng thái bàn chính → CLEANING
       try {
-        // Luôn chuyển sang trạng thái CLEANING sau khi thanh toán xong
         await tableApi.updateTableStatus(table.id, 'CLEANING');
       } catch (e) {
-        console.warn("[PAYMENT_SYNC_WARNING] Cập nhật trạng thái bàn CLEANING thất bại", e);
+        console.warn('[PAYMENT_SYNC_WARNING] Cập nhật trạng thái bàn CLEANING thất bại', e);
       }
 
-      // 3. Đồng bộ lại dữ liệu
+      // 3. Lấy branchId
       const { useAuthStore } = await import('../../store/useAuthStore');
       const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+
+      // 4. fetchTables lần 1: Kích hoạt Self-Healing
+      // Self-Healing sẽ detect main=CLEANING và set bàn con: RESERVED → AVAILABLE → CLEANING
+      // (quá trình này có await bên trong nên cần thời gian)
       await useTableStore.getState().fetchTables(branchId);
 
-      // 4. Close & Reset
+      // 5. fetchTables lần 2: Lấy kết quả CLEANING của bàn con về UI
+      // Lý do: Self-Healing ở lần 1 gọi API cập nhật bàn con xong rồi mới refetch nội bộ,
+      // nhưng lần refetch nội bộ đó không đảm bảo UI đã nhận được trạng thái mới.
+      await useTableStore.getState().fetchTables(branchId);
+
+      // 6. Close & Reset
       useTableStore.setState({ selectedTableId: null });
       onClose();
+
 
     } catch (err) {
       console.error('[API_ERROR][ADD_PAYMENT] Lỗi thêm thanh toán:', {
