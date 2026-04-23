@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
 import { employeeApi } from '../api/employeeApi';
 import { authApi } from '../api/authApi';
+import { extractErrorMessage } from '../utils/errorHelper';
 import {
   User, Mail, Phone, MapPin, Calendar, Save, Edit3,
   X, Loader2, ShieldCheck, Building2, BadgeCheck,
@@ -127,13 +128,17 @@ function PersonalTab({ profile, onUpdate }) {
     if (Object.keys(newErrors).length > 0) return;
 
     setLoading(true);
+    setErrors({});
     try {
       const res = await employeeApi.updateMyProfile(form);
-      toast.success('Đã cập nhật thông tin!');
+      toast.success('Đã cập nhật thông tin hồ sơ thành công!');
       onUpdate(res.data);
       setEditing(false);
     } catch (err) {
-      toast.error(err.message || 'Cập nhật thất bại');
+      toast.error(extractErrorMessage(err, 'Không thể cập nhật hồ sơ. Vui lòng thử lại sau.'));
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors);
+      }
     } finally {
       setLoading(false);
     }
@@ -241,6 +246,122 @@ function PersonalTab({ profile, onUpdate }) {
   );
 }
 
+function SecurityTab() {
+  const { logout } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!form.oldPassword) e.oldPassword = 'Vui lòng nhập mật khẩu hiện tại';
+    if (!form.newPassword) e.newPassword = 'Vui lòng nhập mật khẩu mới';
+    else if (form.newPassword.length < 8) e.newPassword = 'Mật khẩu phải từ 8 ký tự';
+    else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(form.newPassword)) {
+      e.newPassword = 'Mật khẩu phải có chữ hoa, chữ thường và chữ số';
+    }
+    
+    if (form.newPassword !== form.confirmPassword) {
+      e.confirmPassword = 'Xác nhận mật khẩu không khớp';
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setLoading(true);
+    setErrors({});
+    try {
+      await authApi.changePassword({
+        currentPassword: form.oldPassword,
+        newPassword: form.newPassword
+      });
+      toast.success('Đổi mật khẩu thành công! Hệ thống sẽ đăng xuất sau 2 giây.');
+      setTimeout(() => logout(), 2000);
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại.'));
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
+          <Lock size={20} />
+        </div>
+        <h3 className="text-lg font-black text-gray-900 tracking-tight uppercase">Bảo mật & Mật khẩu</h3>
+      </div>
+
+      <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100 space-y-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu hiện tại</label>
+          <input 
+            type="password"
+            value={form.oldPassword}
+            onChange={e => setForm({...form, oldPassword: e.target.value})}
+            className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-sm focus:border-gold-500 outline-none transition-all" 
+            placeholder="••••••••"
+          />
+          {errors.oldPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.oldPassword}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
+            <input 
+              type="password"
+              value={form.newPassword}
+              onChange={e => setForm({...form, newPassword: e.target.value})}
+              className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-sm focus:border-gold-500 outline-none transition-all" 
+              placeholder="Tối thiểu 6 ký tự"
+            />
+            {errors.newPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.newPassword}</p>}
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Xác nhận mật khẩu mới</label>
+            <input 
+              type="password"
+              value={form.confirmPassword}
+              onChange={e => setForm({...form, confirmPassword: e.target.value})}
+              className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-sm focus:border-gold-500 outline-none transition-all" 
+              placeholder="Nhập lại mật khẩu mới"
+            />
+            {errors.confirmPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.confirmPassword}</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+        <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={16} />
+        <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+          <strong>Lưu ý:</strong> Sau khi đổi mật khẩu thành công, phiên làm việc hiện tại của bạn sẽ kết thúc. Bạn sẽ cần phải đăng nhập lại với mật khẩu mới.
+        </p>
+      </div>
+
+      <button 
+        type="submit" 
+        disabled={loading}
+        className="w-full md:w-auto px-10 py-4 rounded-2xl bg-gray-900 text-white text-xs font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-gray-900/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {loading ? <Loader2 size={16} className="animate-spin" /> : 'Cập nhật mật khẩu mới'}
+      </button>
+    </form>
+  );
+}
+
+
 
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
@@ -273,6 +394,8 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'personal', label: 'Thông tin cá nhân', icon: User },
+    // Ẩn tab bảo mật nếu là Admin
+    ...(profile?.roleName !== 'ADMIN' ? [{ id: 'security', label: 'Bảo mật', icon: Lock }] : []),
   ];
 
   return (
@@ -338,7 +461,8 @@ export default function ProfilePage() {
         {/* Content Area */}
         <div className="md:col-span-9">
           <div className="premium-card p-8 min-h-[500px]">
-            <PersonalTab profile={profile} onUpdate={setProfile} />
+            {activeTab === 'personal' && <PersonalTab profile={profile} onUpdate={setProfile} />}
+            {activeTab === 'security' && <SecurityTab />}
           </div>
         </div>
       </div>

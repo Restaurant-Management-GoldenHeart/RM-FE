@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { employeeApi, roleApi } from '../api/employeeApi';
+import { extractErrorMessage } from '../utils/errorHelper';
 
 /**
  * useEmployees - Clean Architecture Hook for Employee Management
@@ -28,20 +29,24 @@ export const useEmployees = () => {
   // --- Queries ---
 
   // 1. Fetch Roles (Required for Form)
-  const { data: rolesRes } = useQuery({
+  const { data: roles = [] } = useQuery({
     queryKey: ['roles'],
-    queryFn: roleApi.getRoles,
+    queryFn: async () => {
+      const res = await roleApi.getRoles();
+      return res.data || [];
+    },
     staleTime: 300000, // 5 mins
   });
-  const roles = rolesRes?.data || [];
 
   // 2. Fetch Branches (Required for Form)
-  const { data: branchesRes, isLoading: branchesLoading } = useQuery({
+  const { data: branches = [], isLoading: branchesLoading } = useQuery({
     queryKey: ['branches'],
-    queryFn: employeeApi.getBranches,
+    queryFn: async () => {
+      const res = await employeeApi.getBranches();
+      return res.data || [];
+    },
     staleTime: 300000,
   });
-  const branches = branchesRes?.data || [];
 
   // 3. Main Employees Query
   const {
@@ -77,8 +82,7 @@ export const useEmployees = () => {
       queryClient.invalidateQueries(['employees']);
     },
     onError: (err) => {
-      const msg = err.response?.data?.message || 'Không thể lưu thông tin nhân viên';
-      toast.error(msg);
+      toast.error(extractErrorMessage(err, 'Không thể lưu thông tin nhân viên'));
     }
   });
 
@@ -90,7 +94,7 @@ export const useEmployees = () => {
       queryClient.invalidateQueries(['employees']);
     },
     onError: (err) => {
-      toast.error(err.response?.data?.message || 'Xóa thất bại');
+      toast.error(extractErrorMessage(err, 'Thao tác xóa thất bại'));
     }
   });
 

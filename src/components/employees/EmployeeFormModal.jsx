@@ -139,6 +139,14 @@ export default function EmployeeFormModal({
     ].join(' ');
   };
 
+  const filteredRoles = roles.filter(r => {
+    if (actorRole === 'MANAGER') {
+      // Manager không được tạo Admin hoặc Manager khác
+      return r.name !== 'ADMIN' && r.name !== 'MANAGER';
+    }
+    return true;
+  });
+
   const selectedRole = roles.find(r => Number(r.id) === Number(formData.roleId));
   const selectedBranch = branches.find(b => Number(b.id) === Number(formData.branchId));
 
@@ -340,7 +348,7 @@ export default function EmployeeFormModal({
                   </Listbox.Button>
                   {!(isManagerEditing || isSelf) && (
                     <Listbox.Options className="absolute z-[110] mt-2 w-full bg-white/90 backdrop-blur-xl border border-gray-100 rounded-2xl shadow-2xl py-2 max-h-60 overflow-auto outline-none animate-in fade-in slide-in-from-top-2">
-                      {roles.map(r => (
+                      {filteredRoles.map(r => (
                         <Listbox.Option
                           key={r.id}
                           value={r.id}

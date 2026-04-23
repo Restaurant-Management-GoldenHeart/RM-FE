@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { menuApi } from '../api/menuApi';
 import { inventoryApi } from '../api/inventoryApi';
+import { employeeApi } from '../api/employeeApi';
+import { extractErrorMessage } from '../utils/errorHelper';
 
 /**
  * useMenu - Custom hook for Menu Management
@@ -22,21 +24,19 @@ export function useMenu() {
   // Note: These should eventually come from their own APIs
   const categoriesQuery = useQuery({
     queryKey: ['menuCategories'],
-    queryFn: async () => [
-      { id: 1, name: 'Món Phở' },
-      { id: 2, name: 'Món Thêm' },
-      { id: 3, name: 'Đồ Uống' },
-      { id: 4, name: 'Tráng Miệng' },
-    ],
-    staleTime: 1000 * 60 * 30,
+    queryFn: async () => {
+      const res = await menuApi.getCategories();
+      return res.data || [];
+    },
+    staleTime: 1000 * 60 * 30, // Cache trong 30 phút vì danh mục ít thay đổi
   });
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
-    queryFn: async () => [
-      { id: 1, name: 'Golden Heart Branch 1' },
-      { id: 2, name: 'Golden Heart Branch 2' },
-    ],
+    queryFn: async () => {
+      const res = await employeeApi.getBranches();
+      return res.data || [];
+    },
     staleTime: 1000 * 60 * 30,
   });
 
@@ -68,12 +68,8 @@ export function useMenu() {
     placeholderData: (previousData) => previousData,
   });
 
-  // 2. Helper: Error Extractor
-  const extractError = (err) => {
-    if (err.response?.data?.errors) return err.response.data.errors;
-    if (err.response?.data?.message) return err.response.data.message;
-    return err.message || 'Đã xảy ra lỗi hệ thống';
-  };
+  // 2. Helper: Error Extractor (Deprecated - using centralized helper)
+  const extractError = (err) => extractErrorMessage(err);
 
   // 3. Mutations
   const createMutation = useMutation({

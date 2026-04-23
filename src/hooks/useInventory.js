@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { inventoryApi } from '../api/inventoryApi';
 import { employeeApi } from '../api/employeeApi';
 import { useAuthStore } from '../store/useAuthStore';
+import { extractErrorMessage } from '../utils/errorHelper';
 
 /**
  * useInventory - Hook quản lý kho hàng chuẩn Production.
@@ -23,12 +24,14 @@ export const useInventory = () => {
   // --- Queries ---
 
   // 1. Danh sách chi nhánh
-  const { data: branchesRes, isLoading: branchesLoading } = useQuery({
+  const { data: branches = [], isLoading: branchesLoading } = useQuery({
     queryKey: ['branches'],
-    queryFn: employeeApi.getBranches,
+    queryFn: async () => {
+      const res = await employeeApi.getBranches();
+      return res.data || [];
+    },
     staleTime: 300000, // 5 phút
   });
-  const branches = branchesRes?.data || [];
 
   // Tự động chọn chi nhánh đầu tiên cho Admin nếu chưa chọn
   useEffect(() => {
@@ -112,8 +115,7 @@ export const useInventory = () => {
       queryClient.invalidateQueries({ queryKey: ['inventoryMovementReport'] });
     },
     onError: (err) => {
-      const msg = err.response?.data?.message || 'Thao tác kho thất bại';
-      toast.error(msg);
+      toast.error(extractErrorMessage(err, 'Thao tác kho thất bại'));
     }
   });
 
@@ -126,7 +128,7 @@ export const useInventory = () => {
       queryClient.invalidateQueries({ queryKey: ['inventorySummary'] });
     },
     onError: (err) => {
-      toast.error(err.response?.data?.message || 'Xóa thất bại');
+      toast.error(extractErrorMessage(err, 'Xóa thất bại'));
     }
   });
 

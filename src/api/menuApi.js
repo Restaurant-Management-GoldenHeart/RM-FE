@@ -76,6 +76,13 @@ export const menuApi = {
    * Yêu cầu Role: ADMIN
    */
   deleteMenuItem: (menuItemId) => apiClient.delete(`/menu-items/${menuItemId}`),
+
+  /**
+   * Lấy danh sách danh mục món ăn từ database.
+   *
+   * @returns {Promise<ApiResponse<CategoryResponse[]>>}
+   */
+  getCategories: () => apiClient.get('/menu-categories'),
 };
 
 export default menuApi;
