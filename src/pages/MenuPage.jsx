@@ -66,7 +66,8 @@ export default function MenuPage() {
       setShowModal(false);
       setEditItem(null);
     } catch (err) {
-      // Error is handled in the hook's mutation (toast)
+      // Re-throw để Modal có thể catch và hiển thị lỗi field-specific
+      throw err;
     }
   };
 

@@ -37,6 +37,14 @@ const cleanParams = (params) => {
 };
 
 export const employeeApi = {
+  // ─── LOOKUPS ─────────────────────────────────────────────────────────────
+  /**
+   * Lấy danh sách chi nhánh từ API chính thức.
+   * 
+   * @returns {Promise<ApiResponse<BranchResponse[]>>}
+   */
+  getBranches: () => apiClient.get('/branches', { params: { restaurantId: 1 } }),
+
   // ─── LIST & DETAIL ───────────────────────────────────────────────────────
 
   /**

@@ -41,11 +41,35 @@ export const authApi = {
   },
 
   /**
+   * Yêu cầu gửi mã OTP khôi phục mật khẩu.
+   * @param {{ channel: 'EMAIL'|'SMS', identifier: string }} data
+   */
+  requestPasswordRecoveryOtp: (data) => apiClient.post('/auth/password-recovery/request-otp', data),
+
+  /**
+   * Xác thực mã OTP.
+   * @param {{ channel: 'EMAIL'|'SMS', identifier: string, otp: string }} data
+   * @returns {Promise<{ resetToken: string }>}
+   */
+  verifyPasswordRecoveryOtp: (data) => apiClient.post('/auth/password-recovery/verify-otp', data),
+
+  /**
+   * Reset mật khẩu mới.
+   * @param {{ resetToken: string, newPassword: string }} data
+   */
+  resetPassword: (data) => apiClient.post('/auth/password-recovery/reset-password', data),
+
+  /**
    * Lấy thông tin profile của user đang đăng nhập.
-   * @param {object} [config] - Cấu hình axios bổ sung
    * @returns {Promise<EmployeeSelfResponse>}
    */
-  getMyProfile: (config) => apiClient.get('/employees/me', config),
+  getMyProfile: () => apiClient.get('/employees/me'),
+
+  /**
+   * Đổi mật khẩu.
+   * @param {{ oldPassword: string, newPassword: string }} data
+   */
+  changePassword: (data) => apiClient.post('/auth/change-password', data),
 };
 
 export default authApi;

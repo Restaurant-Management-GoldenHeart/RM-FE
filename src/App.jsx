@@ -16,6 +16,7 @@ import CustomersPage from './pages/CustomersPage';
 import StaffPosPage from './pages/StaffPosPage';
 import KitchenPage from './pages/KitchenPage';
 import InventoryPage from './pages/InventoryPage';
+import InventoryHistoryPage from './pages/InventoryHistoryPage';
 
 // ─── ROLE GUARD ───────────────────────────────────────────────────────────────
 function RoleGuard({ allowedRoles, children }) {
@@ -105,6 +106,15 @@ function AppRoutes() {
           element={
             <RoleGuard allowedRoles={['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN']}>
               <InventoryPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/inventory/history"
+          element={
+            <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+              <InventoryHistoryPage />
             </RoleGuard>
           }
         />

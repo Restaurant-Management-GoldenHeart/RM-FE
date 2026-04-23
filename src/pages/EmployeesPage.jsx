@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useEmployees } from '../hooks/useEmployees';
 import EmployeeFormModal from '../components/employees/EmployeeFormModal';
+import PremiumConfirmModal from '../components/PremiumConfirmModal';
 
 /**
  * EmployeesPage.jsx — Quản lý nhân viên với theme "Simple White & Gold".
@@ -34,6 +35,8 @@ export default function EmployeesPage() {
     isEmpty,
     pagination,
     keyword,
+    branches,
+    branchesLoading,
     handleSearch,
     handlePageChange,
     saveEmployee,
@@ -110,10 +113,10 @@ export default function EmployeesPage() {
       </div>
 
       {/* 2. Main Content Area */}
-      <div className="bg-white border border-gray-100 rounded-[2.5rem] shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col min-h-[600px] transition-all duration-300">
         
         {/* Toolbar */}
-        <div className="p-8 border-b border-gray-50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gray-50/20">
+        <div className="p-8 border-b border-gray-100/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/40">
           <div className="relative max-w-lg w-full group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
             <input
@@ -159,10 +162,10 @@ export default function EmployeesPage() {
         {/* Table Content */}
         <div className="flex-1 relative overflow-x-auto overflow-y-auto">
           {loading ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[2px]">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Hệ thống đang tải...</p>
+                <Loader2 className="w-10 h-10 text-amber-500 animate-spin drop-shadow-md" />
+                <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.3em]">Hệ thống đang tải...</p>
               </div>
             </div>
           ) : isEmpty ? (
@@ -176,9 +179,9 @@ export default function EmployeesPage() {
               </p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50/30 border-b border-gray-50">
+                  <tr className="bg-gray-50/50 border-b border-gray-100/50">
                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[300px]">Nhân sự</th>
                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[200px]">Liên lạc</th>
                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[200px]">Vai trò & Chi nhánh</th>
@@ -186,9 +189,9 @@ export default function EmployeesPage() {
                     <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-right min-w-[120px]">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-100/50">
                   {employees.map((emp) => (
-                    <tr key={emp.id} className="group hover:bg-amber-50/30 transition-colors">
+                    <tr key={emp.id} className="group hover:bg-amber-50/40 transition-colors duration-300">
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
@@ -220,7 +223,9 @@ export default function EmployeesPage() {
                       </td>
                       <td className="px-8 py-5">
                         <div className="space-y-1.5">
-                          <p className="text-xs font-black text-gray-700">{emp.branchName || "Chi nhánh chính"}</p>
+                          <p className="text-xs font-black text-gray-700">
+                            {emp.branchName || (emp.roleName === 'ADMIN' ? 'Trụ sở chính' : "Chưa cập nhật")}
+                          </p>
                           <span className="inline-block px-2 py-0.5 rounded-lg bg-gray-100 text-gray-500 text-[9px] font-black uppercase tracking-tighter">
                             {emp.roleName}
                           </span>
@@ -262,7 +267,7 @@ export default function EmployeesPage() {
 
         {/* 3. Footer / Pagination Area */}
         {!isEmpty && (
-          <div className="p-8 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-6 bg-gray-50/20">
+          <div className="p-8 border-t border-gray-100/50 flex flex-col sm:flex-row items-center justify-between gap-6 bg-white/40">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
               Bản ghi <b className="text-gray-900">{employees.length}</b> / <b className="text-gray-900">{pagination.totalElements}</b>
             </span>
@@ -312,43 +317,24 @@ export default function EmployeesPage() {
         onSubmit={onFormSubmit}
         employee={employeeToEdit}
         roles={roles}
+        branches={branches}
         isLoading={isSaving}
+        branchesLoading={branchesLoading}
       />
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setDeleteTarget(null)} />
-          <div className="relative z-10 bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl border border-gray-100 overflow-hidden transform transition-all animate-zoom-in">
-            <div className="p-10">
-              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-8 border border-red-100">
-                <Trash2 className="w-8 h-8 text-red-500" />
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 tracking-tight">Xóa hồ sơ nhân sự</h3>
-              <p className="text-gray-400 text-sm mt-4 font-medium leading-relaxed">
-                Bạn có chắc muốn vô hiệu hóa nhân viên <span className="text-gray-900 font-bold underline decoration-amber-400 decoration-2 underline-offset-4">{deleteTarget?.fullName}</span>? 
-                <br/><br/>
-                Thao tác này sẽ thực hiện **Xóa mềm** để bảo toàn lịch sử dữ liệu hệ thống.
-              </p>
-            </div>
-            <div className="px-10 py-8 bg-gray-50/80 flex items-center gap-4 border-t border-gray-100">
-              <button
-                onClick={onDeleteConfirm}
-                disabled={isDeleting}
-                className="flex-1 px-6 py-4 bg-red-500 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 active:scale-95 disabled:opacity-50"
-              >
-                {isDeleting ? 'Đang xử lý...' : 'Xác nhận xóa'}
-              </button>
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="px-8 py-4 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors"
-              >
-                Hủy
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PremiumConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={onDeleteConfirm}
+        title="Vô hiệu hóa tài khoản"
+        message="Bạn có chắc muốn vô hiệu hóa nhân viên"
+        highlightText={deleteTarget?.fullName || ''}
+        note="Thao tác này thực hiện xóa mềm (Deactivate) để bảo toàn lịch sử dữ liệu hệ thống."
+        cancelText="Hủy bỏ"
+        confirmText="Vô hiệu hóa"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

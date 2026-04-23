@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Listbox } from '@headlessui/react';
-import { X, Save, Package, AlertTriangle, Loader2, Check, ChevronDown, Lock } from 'lucide-react';
+import { X, Save, Package, AlertTriangle, Loader2, Check, ChevronDown, Lock, Building2 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function InventoryFormModal({
@@ -10,11 +10,14 @@ export default function InventoryFormModal({
   onSubmit,
   initialData,
   units = [],
-  isLoading
+  branches = [],
+  isLoading,
+  branchesLoading = false
 }) {
-  const { user } = useAuthStore();
+  const { user, role: actorRole } = useAuthStore();
   const isEdit = !!initialData;
-  const nameRef = useRef();
+  const isManager = actorRole === 'MANAGER';
+  const nameRef = React.useRef();
 
   const [formData, setFormData] = useState({
     ingredientName: '',
@@ -22,14 +25,14 @@ export default function InventoryFormModal({
     minStockLevel: '',
     reorderLevel: '',
     averageUnitCost: '',
-    unitId: ''
+    unitId: '',
+    branchId: ''
   });
 
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // Lock scroll
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -40,18 +43,17 @@ export default function InventoryFormModal({
     return () => (document.body.style.overflow = '');
   }, [isOpen]);
 
-  // Load data
   useEffect(() => {
     if (!isOpen) return;
-
     if (initialData) {
       setFormData({
         ingredientName: initialData.ingredientName || initialData.itemName || '',
-        quantity: initialData.quantity ?? '',
+        quantity: initialData.quantity ?? initialData.currentQuantity ?? '',
         minStockLevel: initialData.minStockLevel ?? '',
         reorderLevel: initialData.reorderLevel ?? '',
-        averageUnitCost: initialData.averageUnitCost ?? '',
-        unitId: initialData.unitId || ''
+        averageUnitCost: initialData.averageUnitCost ?? initialData.cost ?? '',
+        unitId: initialData.unitId || units.find(u => u.symbol === (initialData.unitSymbol || initialData.unit))?.id || '',
+        branchId: initialData.branchId || ''
       });
     } else {
       setFormData({
@@ -60,49 +62,37 @@ export default function InventoryFormModal({
         minStockLevel: '',
         reorderLevel: '',
         averageUnitCost: '',
-        unitId: units[0]?.id || ''
+        unitId: units[0]?.id || '',
+        branchId: isManager ? user?.branchId : (branches[0]?.id || '')
       });
     }
-
     setErrors({});
     setFormError(null);
     setFieldErrors({});
-  }, [isOpen, initialData, units]);
+  }, [isOpen, initialData, units, branches, isManager, user]);
 
   if (!isOpen) return null;
 
   const validate = () => {
-    const newErrors = {};
-
-    if (!formData.ingredientName || !formData.ingredientName.trim()) {
-      newErrors.ingredientName = 'Tên không được để trống';
-    }
-
+    const e = {};
+    if (!formData.ingredientName?.trim()) e.ingredientName = 'Tên không được để trống';
     const qty = parseFloat(formData.quantity);
-    if (isNaN(qty) || qty < 0) {
-      newErrors.quantity = 'Số lượng không hợp lệ (>= 0)';
-    }
-
-    if (!formData.unitId) {
-      newErrors.unitId = 'Vui lòng chọn đơn vị';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (isNaN(qty) || qty < 0) e.quantity = 'Số lượng không hợp lệ (≥ 0)';
+    if (!formData.unitId) e.unitId = 'Vui lòng chọn đơn vị';
+    if (!formData.branchId) e.branchId = 'Vui lòng chọn chi nhánh';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleNumberChange = (field, value) => {
-    // Sanitize: Only allow numbers and decimal point
     const sanitized = value.replace(/[^0-9.]/g, '');
-    const parts = sanitized.split('.');
-    if (parts.length > 2) return;
-
+    if (sanitized.split('.').length > 2) return;
     setFieldErrors(prev => ({ ...prev, [field]: undefined }));
     setFormData(prev => ({ ...prev, [field]: sanitized }));
   };
 
   const handleChange = (field, value) => {
-    if (field === 'unitId' && isEdit) return; // Prevent mutation
+    if ((field === 'unitId' || field === 'branchId') && isEdit) return;
     setFieldErrors(prev => ({ ...prev, [field]: undefined }));
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -111,13 +101,10 @@ export default function InventoryFormModal({
     e.preventDefault();
     setFormError(null);
     setFieldErrors({});
-
     if (!validate()) return;
-
     try {
-      // THE FIX: Include branchId which is mandatory in CreateInventoryItemRequest
       await onSubmit({
-        branchId: user?.branchId || 1, 
+        branchId: Number(formData.branchId),
         ingredientName: formData.ingredientName.trim(),
         quantity: parseFloat(formData.quantity) || 0,
         minStockLevel: parseFloat(formData.minStockLevel) || 0,
@@ -126,117 +113,164 @@ export default function InventoryFormModal({
         unitId: Number(formData.unitId)
       });
     } catch (err) {
-      console.error('Submit Error Modal:', err);
-      // Backend Error Mapping
       const data = err.response?.data;
-      if (data?.errors) {
-        setFieldErrors(data.errors);
-      } else if (data?.message) {
-        setFormError(data.message);
-      } else {
-        setFormError('Đã xảy ra lỗi hệ thống, vui lòng thử lại sau.');
-      }
+      if (data?.errors) setFieldErrors(data.errors);
+      else if (data?.message) setFormError(data.message);
+      else setFormError('Đã xảy ra lỗi hệ thống, vui lòng thử lại sau.');
     }
   };
 
+  // ─── Input class helper ──────────────────────────────────────────
   const inputCls = (field) => {
-    const isLocked = isEdit && (field === 'ingredientName' || field === 'unitId');
+    const isLocked = isEdit && (field === 'ingredientName' || field === 'unitId' || field === 'branchId');
     const hasError = errors[field] || fieldErrors[field];
-
-    return `
-      w-full px-5 py-3.5 rounded-2xl border text-sm font-bold
-      outline-none transition-all
-      ${isLocked
-        ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200 shadow-none'
+    return [
+      'w-full px-4 py-3 rounded-2xl border text-sm font-semibold outline-none transition-all duration-200',
+      isLocked
+        ? 'bg-gray-50/50 text-gray-400 cursor-not-allowed border-white/60'
         : hasError
-          ? 'bg-red-50/20 border-red-500 focus:ring-4 focus:ring-red-500/10'
-          : 'bg-white border-gray-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 shadow-sm'
-      }
-      disabled:opacity-100
-    `;
+          ? 'bg-red-50/30 border-red-300/60 focus:ring-2 focus:ring-red-400/20'
+          : 'bg-white/50 border-white/60 backdrop-blur-sm focus:bg-white/80 focus:border-orange-300/60 focus:ring-2 focus:ring-orange-400/15 shadow-[0_2px_8px_rgba(0,0,0,0.03)]',
+    ].join(' ');
   };
 
   const selectedUnit = units.find(u => Number(u.id) === Number(formData.unitId));
+  const selectedBranch = branches.find(b => Number(b.id) === Number(formData.branchId));
+
+  // ─── Field error display ─────────────────────────────────────────
+  const FieldErr = ({ field }) => {
+    const msg = fieldErrors[field] || (errors[field] && !fieldErrors[field] ? errors[field] : null);
+    if (!msg) return null;
+    return <p className="text-red-500 text-[10px] font-bold uppercase tracking-wider px-1 mt-1 italic">{msg}</p>;
+  };
+
+  // ─── Label ──────────────────────────────────────────────────────
+  const Label = ({ children }) => (
+    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-1.5">
+      {children}
+    </label>
+  );
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
-
-      {/* BACKDROP */}
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-md"
+        className="absolute inset-0 bg-black/30 backdrop-blur-md"
         onClick={!isLoading ? onClose : undefined}
       />
 
-      {/* MODAL */}
-      <div className="relative z-10 w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 scale-in-center">
+      {/* Modal shell — Glassmorphism */}
+      <div className="relative z-10 w-full max-w-lg bg-white/70 backdrop-blur-2xl rounded-[2rem] border border-white/80 shadow-[0_32px_80px_rgba(0,0,0,0.12)] overflow-hidden">
 
-        {/* HEADER */}
-        <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        {/* ─── Header ─── */}
+        <div className="px-7 pt-6 pb-5 border-b border-white/60 flex justify-between items-center bg-white/40">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Package className="text-white w-6 h-6" />
+            <div className="w-11 h-11 bg-orange-50 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(249,115,22,0.12)]">
+              <Package size={20} className="text-orange-500" />
             </div>
             <div>
-              <h3 className="font-black text-gray-900 uppercase tracking-tight">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">
                 {isEdit ? 'Cập nhật kho' : 'Thêm nguyên liệu'}
               </h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-0.5">Hệ thống quản lý vật tư</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                Quản lý vật tư kho hàng
+              </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95 shadow-sm"
+            aria-label="Đóng"
+            className="w-9 h-9 flex items-center justify-center rounded-2xl bg-white/60 border border-white/80 text-gray-400 hover:text-red-500 hover:bg-red-50/60 transition-all active:scale-90 shadow-sm"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* BODY */}
-        <form onSubmit={handleSubmit} className="p-8 space-y-5 overflow-y-auto max-h-[80vh]">
+        {/* ─── Body ─── */}
+        <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5 overflow-y-auto max-h-[75vh]">
 
-          {/* GLOBAL ERROR BANNER */}
+          {/* Global error */}
           {formError && (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-slide-up">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              <p className="text-xs font-bold leading-tight uppercase tracking-tight">{formError}</p>
+            <div className="p-4 bg-red-50/60 border border-red-200/60 rounded-2xl flex items-start gap-3 backdrop-blur-sm">
+              <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+              <p className="text-xs font-bold text-red-600 leading-relaxed">{formError}</p>
             </div>
           )}
 
-          {/* NAME */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-              Tên nguyên liệu <span className="text-red-500 text-sm font-normal">*</span>
-              {isEdit && <Lock className="w-3 h-3" />}
-            </label>
+          {/* Branch Selection */}
+          <div>
+            <Label>
+              Chi nhánh <span className="text-red-400 text-xs font-bold normal-case">*</span>
+              {(isEdit || isManager) && <Lock size={11} className="text-gray-300" />}
+            </Label>
+            <Listbox 
+              value={formData.branchId} 
+              onChange={val => handleChange('branchId', val)} 
+              disabled={isEdit || isManager}
+            >
+              <div className="relative">
+                <Listbox.Button className={`${inputCls('branchId')} flex justify-between items-center text-left`}>
+                  <span className="truncate">{selectedBranch?.name || '-- Chọn chi nhánh --'}</span>
+                  {!(isEdit || isManager)
+                    ? <ChevronDown size={15} className="text-gray-400 shrink-0" />
+                    : <Lock size={14} className="text-gray-300 shrink-0" />}
+                </Listbox.Button>
+                {!(isEdit || isManager) && (
+                  <Listbox.Options className="absolute z-50 mt-2 w-full bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.10)] py-2 max-h-60 overflow-auto outline-none">
+                    {branchesLoading ? (
+                      <div className="px-4 py-2 text-xs font-bold text-gray-400 flex items-center gap-2">
+                        <Loader2 size={12} className="animate-spin text-orange-500" /> Đang tải…
+                      </div>
+                    ) : branches.map(b => (
+                      <Listbox.Option
+                        key={b.id}
+                        value={b.id}
+                        className={({ active, selected }) =>
+                          `cursor-pointer px-4 py-2.5 text-sm font-semibold flex justify-between items-center transition-colors
+                          ${selected ? 'bg-orange-50 text-orange-600' : active ? 'bg-gray-50 text-gray-900' : 'text-gray-700'}`
+                        }
+                      >
+                        {({ selected }) => (
+                          <>
+                            <span className="truncate">{b.name}</span>
+                            {selected && <Check size={14} className="text-orange-500 shrink-0" />}
+                          </>
+                        )}
+                      </Listbox.Option>
+                    ))}
+                  </Listbox.Options>
+                )}
+              </div>
+            </Listbox>
+            <FieldErr field="branchId" />
+          </div>
+
+          {/* Name */}
+          <div>
+            <Label>
+              Tên nguyên liệu <span className="text-red-400 text-xs font-bold normal-case">*</span>
+              {isEdit && <Lock size={11} className="text-gray-300" />}
+            </Label>
             <input
               ref={nameRef}
               className={inputCls('ingredientName')}
               value={formData.ingredientName}
-              placeholder="VD: Thịt bò tái, Hành lá..."
+              placeholder="VD: Thịt bò tái, Hành lá…"
               disabled={isEdit}
               readOnly={isEdit}
               onChange={e => handleChange('ingredientName', e.target.value)}
+              autoComplete="off"
             />
-            {fieldErrors.ingredientName && (
-              <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide px-2 italic">
-                {fieldErrors.ingredientName}
-              </p>
-            )}
-            {errors.ingredientName && !fieldErrors.ingredientName && (
-              <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide px-2 italic">
-                {errors.ingredientName}
-              </p>
-            )}
+            <FieldErr field="ingredientName" />
           </div>
 
-          {/* ROW 1: QTY & UNIT */}
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                Số lượng lẻ <span className="text-red-500 text-sm font-normal">*</span>
-              </label>
+          {/* Qty + Unit */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>
+                Số lượng <span className="text-red-400 text-xs font-bold normal-case">*</span>
+              </Label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -244,54 +278,42 @@ export default function InventoryFormModal({
                 value={formData.quantity}
                 placeholder="0.00"
                 onChange={e => handleNumberChange('quantity', e.target.value)}
+                autoComplete="off"
               />
-              {(errors.quantity || fieldErrors.quantity) && (
-                <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide px-2 italic">
-                  {errors.quantity || fieldErrors.quantity}
-                </p>
-              )}
+              <FieldErr field="quantity" />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                Đơn vị tính <span className="text-red-500 text-sm font-normal">*</span>
-                {isEdit && <Lock className="w-3 h-3" />}
-              </label>
-
-              <Listbox value={formData.unitId} onChange={(val) => handleChange('unitId', val)} disabled={isEdit}>
+            <div>
+              <Label>
+                Đơn vị tính <span className="text-red-400 text-xs font-bold normal-case">*</span>
+                {isEdit && <Lock size={11} className="text-gray-300" />}
+              </Label>
+              <Listbox value={formData.unitId} onChange={val => handleChange('unitId', val)} disabled={isEdit}>
                 <div className="relative">
-                  <Listbox.Button className={inputCls('unitId') + ' flex justify-between items-center text-left'}>
-                    <span className="truncate">
-                      {selectedUnit?.name || '-- Chọn đơn vị --'}
-                    </span>
-                    {!isEdit ? (
-                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                    ) : (
-                      <Lock className="w-4 h-4 text-gray-400/50 shrink-0" />
-                    )}
+                  <Listbox.Button className={`${inputCls('unitId')} flex justify-between items-center text-left`}>
+                    <span className="truncate">{selectedUnit?.name || '-- Chọn đơn vị --'}</span>
+                    {!isEdit
+                      ? <ChevronDown size={15} className="text-gray-400 shrink-0" />
+                      : <Lock size={14} className="text-gray-300 shrink-0" />}
                   </Listbox.Button>
-
                   {!isEdit && (
-                    <Listbox.Options className="absolute z-50 mt-2 w-full bg-white border border-gray-100 rounded-2xl shadow-2xl py-2 max-h-60 overflow-auto outline-none animate-slide-up duration-200">
+                    <Listbox.Options className="absolute z-50 mt-2 w-full bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.10)] py-2 max-h-60 overflow-auto outline-none">
                       {units.map(u => (
                         <Listbox.Option
                           key={u.id}
                           value={u.id}
                           className={({ active, selected }) =>
-                            `cursor-pointer px-5 py-3 text-sm font-bold flex justify-between items-center transition-all
-                            ${active ? 'bg-amber-50 text-amber-600' : 'text-gray-900'}
-                            ${selected ? 'bg-amber-500 text-white' : ''}`
+                            `cursor-pointer px-4 py-2.5 text-sm font-semibold flex justify-between items-center transition-colors
+                            ${selected ? 'bg-orange-50 text-orange-600' : active ? 'bg-gray-50 text-gray-900' : 'text-gray-700'}`
                           }
                         >
                           {({ selected }) => (
                             <>
-                              <div className="flex flex-col">
-                                <span>{u.name}</span>
-                                <span className={`text-[10px] uppercase font-black tracking-widest mt-0.5 ${selected ? 'text-white/60' : 'text-gray-400'}`}>
-                                  {u.symbol}
-                                </span>
+                              <div>
+                                <p>{u.name}</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5">{u.symbol}</p>
                               </div>
-                              {selected && <Check className="w-4 h-4" />}
+                              {selected && <Check size={14} className="text-orange-500 shrink-0" />}
                             </>
                           )}
                         </Listbox.Option>
@@ -300,41 +322,37 @@ export default function InventoryFormModal({
                   )}
                 </div>
               </Listbox>
-
               {isEdit && (
-                <p className="text-[10px] text-gray-400 mt-2 font-medium leading-relaxed italic">
-                  Không thể thay đổi đơn vị tính vì nguyên liệu đã có lịch sử kho.
+                <p className="text-[10px] text-gray-400 mt-1.5 font-medium italic leading-relaxed">
+                  Không thể thay đổi đơn vị khi đã có lịch sử kho.
                 </p>
               )}
-
-              {errors.unitId && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide px-2 italic">{errors.unitId}</p>}
+              <FieldErr field="unitId" />
             </div>
           </div>
 
-          {/* ROW 2: AVG COST & MIN STOCK */}
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
-                Giá vốn trung bình
-              </label>
+          {/* Avg cost + Min stock */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Giá vốn trung bình</Label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold leading-none">₫</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">₫</span>
                 <input
                   type="text"
                   inputMode="decimal"
-                  className={inputCls('averageUnitCost') + ' pl-8'}
+                  className={`${inputCls('averageUnitCost')} pl-8`}
                   value={formData.averageUnitCost}
                   placeholder="0"
                   onChange={e => handleNumberChange('averageUnitCost', e.target.value)}
+                  autoComplete="off"
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+            <div>
+              <Label>
                 Tồn tối thiểu
-                <AlertTriangle className="w-3 h-3 text-amber-500" />
-              </label>
+                <AlertTriangle size={11} className="text-amber-400" />
+              </Label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -342,51 +360,46 @@ export default function InventoryFormModal({
                 value={formData.minStockLevel}
                 placeholder="0"
                 onChange={e => handleNumberChange('minStockLevel', e.target.value)}
+                autoComplete="off"
               />
             </div>
           </div>
 
-          {/* ROW 3: REORDER LEVEL */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-              Mức tái đặt hàng (Reorder Level)
-              <Package className="w-3 h-3 text-amber-500" />
-            </label>
+          {/* Reorder level */}
+          <div>
+            <Label>Mức tái đặt hàng (Reorder Level)</Label>
             <input
               type="text"
               inputMode="decimal"
               className={inputCls('reorderLevel')}
               value={formData.reorderLevel}
-              placeholder="VD: 20"
+              placeholder="VD: 20…"
               onChange={e => handleNumberChange('reorderLevel', e.target.value)}
+              autoComplete="off"
             />
           </div>
 
-          {/* FOOTER */}
-          <div className="flex gap-4 pt-4 pb-2">
+          {/* Footer buttons */}
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="flex-1 px-6 py-4 rounded-2xl border border-gray-100 text-gray-400 font-black text-xs uppercase tracking-widest hover:bg-gray-50 hover:text-gray-900 transition-all active:scale-95 shadow-sm"
+              className="flex-1 py-3 rounded-2xl border border-white/60 bg-white/40 backdrop-blur-sm text-gray-500 font-bold text-xs uppercase tracking-widest hover:bg-white/70 hover:text-gray-800 transition-all active:scale-95"
             >
               Hủy bỏ
             </button>
-
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-[2] bg-gray-900 text-white py-4 rounded-2xl flex justify-center items-center gap-3 font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-gray-900/10 hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+              className="flex-[2] bg-gray-900 text-white py-3 rounded-2xl flex justify-center items-center gap-2.5 font-black text-xs uppercase tracking-widest shadow-[0_8px_24px_rgba(0,0,0,0.15)] hover:bg-black transition-all active:scale-95 disabled:opacity-50"
             >
-              {isLoading ? (
-                <Loader2 className="animate-spin w-5 h-5" />
-              ) : (
-                <Save className="w-5 h-5" />
-              )}
+              {isLoading
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Save size={16} />}
               {isEdit ? 'Lưu thay đổi' : 'Xác nhận thêm'}
             </button>
           </div>
-
         </form>
       </div>
     </div>,

@@ -111,6 +111,8 @@ export function MenuFormModal({
   });
   const [recipes, setRecipes] = useState([]);
   const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (item) {
@@ -153,28 +155,42 @@ export function MenuFormModal({
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError(null);
+    setFieldErrors({});
+    
     if (!validate()) return;
     
-    // Clean recipes
-    const cleanRecipes = recipes
-      .filter(r => r.ingredientId && r.quantity)
-      .map(r => ({ ingredientId: Number(r.ingredientId), quantity: Number(r.quantity) }));
+    try {
+      // Clean recipes
+      const cleanRecipes = recipes
+        .filter(r => r.ingredientId && r.quantity)
+        .map(r => ({ ingredientId: Number(r.ingredientId), quantity: Number(r.quantity) }));
 
-    onSave({
-      ...form,
-      name: form.name.trim(),
-      price: Number(form.price),
-      branchId: Number(form.branchId),
-      categoryId: Number(form.categoryId),
-      recipes: cleanRecipes
-    });
+      await onSave({
+        ...form,
+        name: form.name.trim(),
+        price: Number(form.price),
+        branchId: Number(form.branchId),
+        categoryId: Number(form.categoryId),
+        recipes: cleanRecipes
+      });
+    } catch (err) {
+      const data = err.response?.data;
+      if (data?.errors) {
+        setFieldErrors(data.errors);
+      } else if (data?.message) {
+        setFormError(data.message);
+      } else {
+        setFormError('Đã xảy ra lỗi hệ thống, vui lòng thử lại sau.');
+      }
+    }
   };
 
   const inputCls = (field) => `
     w-full px-4 py-3 rounded-xl bg-white border text-gray-900 text-sm placeholder-gray-400 outline-none transition-all
-    ${errors[field] 
+    ${(errors[field] || fieldErrors[field])
       ? 'border-red-500 focus:ring-4 focus:ring-red-500/5' 
       : 'border-gray-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5'}
   `;
@@ -215,6 +231,13 @@ export function MenuFormModal({
 
         {/* Form Body */}
         <div className="overflow-y-auto p-8 custom-scrollbar">
+          {formError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 text-red-600 animate-slide-up">
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+              <p className="text-xs font-bold leading-relaxed uppercase tracking-tight">{formError}</p>
+            </div>
+          )}
+          
           <form id="menu-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Name */}
@@ -223,10 +246,14 @@ export function MenuFormModal({
                     <input 
                         className={inputCls('name')} 
                         value={form.name}
-                        onChange={(e) => setForm({...form, name: e.target.value, nameErr: null})} 
+                        onChange={(e) => setForm({...form, name: e.target.value})} 
                         placeholder="Ví dụ: Phở Bò Tái Nạm..." 
                     />
-                    {errors.name && <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1"><AlertTriangle size={12}/> {errors.name}</p>}
+                    {(errors.name || fieldErrors.name) && (
+                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                        <AlertTriangle size={12}/> {fieldErrors.name || errors.name}
+                      </p>
+                    )}
                 </div>
 
                 {/* Description */}
@@ -253,6 +280,11 @@ export function MenuFormModal({
                             placeholder="0" 
                         />
                     </div>
+                    {fieldErrors.price && (
+                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1 mt-1">
+                        <AlertTriangle size={12}/> {fieldErrors.price}
+                      </p>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -270,7 +302,11 @@ export function MenuFormModal({
                         <option value="">-- Chọn chi nhánh --</option>
                         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
-                    {errors.branchId && <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1"><AlertTriangle size={12}/> {errors.branchId}</p>}
+                    {(errors.branchId || fieldErrors.branchId) && (
+                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                        <AlertTriangle size={12}/> {fieldErrors.branchId || errors.branchId}
+                      </p>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -279,7 +315,11 @@ export function MenuFormModal({
                         <option value="">-- Chọn danh mục --</option>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                    {errors.categoryId && <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1"><AlertTriangle size={12}/> {errors.categoryId}</p>}
+                    {(errors.categoryId || fieldErrors.categoryId) && (
+                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                        <AlertTriangle size={12}/> {fieldErrors.categoryId || errors.categoryId}
+                      </p>
+                    )}
                 </div>
             </div>
 
