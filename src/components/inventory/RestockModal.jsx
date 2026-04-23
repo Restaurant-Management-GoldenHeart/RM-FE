@@ -48,15 +48,17 @@ export default function RestockModal({ isOpen, onClose, onSubmit, item, isLoadin
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Ghép thông tin nhà cung cấp vào ghi chú vì backend không có trường supplier riêng
+    const finalNote = [
+      formData.supplier ? `NCC: ${formData.supplier}` : '',
+      formData.note
+    ].filter(Boolean).join(' - ');
+
     onSubmit({
       quantity: preview.newQuantity,
       averageUnitCost: preview.newAvgCost,
-      restockInfo: {
-        addedQuantity: Number(formData.addedQuantity),
-        buyPrice: Number(formData.buyPrice),
-        supplier: formData.supplier,
-        note: formData.note
-      }
+      note: finalNote
     });
   };
 
