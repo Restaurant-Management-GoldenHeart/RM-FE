@@ -28,111 +28,116 @@ export const useEmployees = () => {
   // --- Queries ---
 
   // 1. Fetch Roles (Required for Form)
-  const rolesQuery = useQuery({
+  const { data: rolesRes } = useQuery({
     queryKey: ['roles'],
-    queryFn: () => roleApi.getRoles(),
-    staleTime: 10 * 60 * 1000, // Roles rarely change
+    queryFn: roleApi.getRoles,
+    staleTime: 300000, // 5 mins
   });
+  const roles = rolesRes?.data || [];
 
-  // 2. Fetch Employees (Paginated)
-  const employeesQuery = useQuery({
+  // 2. Fetch Branches (Required for Form)
+  const { data: branchesRes, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches'],
+    queryFn: employeeApi.getBranches,
+    staleTime: 300000,
+  });
+  const branches = branchesRes?.data || [];
+
+  // 3. Main Employees Query
+  const {
+    data: employeesRes,
+    isLoading: loading,
+    isFetching,
+    error: queryError,
+    refetch
+  } = useQuery({
     queryKey: ['employees', keyword, page],
     queryFn: () => employeeApi.getEmployees({ keyword, page, size }),
     placeholderData: keepPreviousData,
+    retry: 1,
   });
 
-  // --- Mutation Helper ---
-  const handleMutationError = (err, defaultMsg) => {
-    console.error('Mutation Error:', err);
-    
-    if (err.status === 409) {
-      return toast.error('Dữ liệu bị trùng lặp: Username hoặc Email đã tồn tại.', { duration: 5000 });
-    }
-
-    if (err.message === 'Validation failed' && err.raw?.errors) {
-      const fieldErrors = Object.entries(err.raw.errors)
-        .map(([field, msg]) => `${field}: ${msg}`)
-        .join('\n');
-      
-      return toast.error(`Lỗi dữ liệu:\n${fieldErrors}`, { 
-        duration: 6000,
-        style: { whiteSpace: 'pre-line' }
-      });
-    }
-
-    toast.error(err.message || defaultMsg);
+  const employees = employeesRes?.data?.content || [];
+  const pagination = {
+    page: employeesRes?.data?.number || 0,
+    totalPages: employeesRes?.data?.totalPages || 0,
+    totalElements: employeesRes?.data?.totalElements || 0,
+    size: employeesRes?.data?.size || 10,
   };
 
   // --- Mutations ---
 
-  const createMutation = useMutation({
-    mutationFn: employeeApi.createEmployee,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Thêm nhân viên mới thành công!');
+  // Save (Create/Update)
+  const saveMutation = useMutation({
+    mutationFn: ({ data, id }) => id 
+      ? employeeApi.updateEmployee(id, data) 
+      : employeeApi.createEmployee(data),
+    onSuccess: (_, variables) => {
+      toast.success(variables.id ? 'Cập nhật nhân viên thành công' : 'Thêm nhân viên mới thành công');
+      queryClient.invalidateQueries(['employees']);
     },
-    onError: (err) => handleMutationError(err, 'Lỗi khi thêm nhân viên')
+    onError: (err) => {
+      const msg = err.response?.data?.message || 'Không thể lưu thông tin nhân viên';
+      toast.error(msg);
+    }
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => employeeApi.updateEmployee(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Cập nhật thông tin thành công!');
-    },
-    onError: (err) => handleMutationError(err, 'Lỗi khi cập nhật nhân viên')
-  });
-
+  // Delete
   const deleteMutation = useMutation({
-    mutationFn: employeeApi.deleteEmployee,
+    mutationFn: (id) => employeeApi.deleteEmployee(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Đã xóa hồ sơ nhân viên');
+      toast.success('Đã vô hiệu hóa tài khoản nhân viên');
+      queryClient.invalidateQueries(['employees']);
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Không thể xóa nhân viên này')
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Xóa thất bại');
+    }
   });
 
-  // --- Derived Values ---
-  const employeeList = useMemo(() => employeesQuery.data?.data?.content || [], [employeesQuery.data]);
-  const pagination = useMemo(() => ({
-    page: employeesQuery.data?.data?.page || 0,
-    totalPages: employeesQuery.data?.data?.totalPages || 0,
-    totalElements: employeesQuery.data?.data?.totalElements || 0,
-    size
-  }), [employeesQuery.data]);
+  // --- Handlers ---
+  const handleSearch = (val) => {
+    setSearchInput(val);
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const saveEmployee = async (data, id) => {
+    try {
+      await saveMutation.mutateAsync({ data, id });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const deleteEmployee = async (id) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
   return {
-    // States
-    employees: employeeList,
-    roles: rolesQuery.data?.data || [],
-    pagination,
-    keyword: searchInput, // Return searchInput for binding
-    
-    // Status
-    loading: employeesQuery.isLoading,
-    isFetching: employeesQuery.isFetching,
-    isSaving: createMutation.isPending || updateMutation.isPending,
+    employees,
+    roles,
+    branches,
+    loading,
+    isFetching,
+    branchesLoading,
+    isSaving: saveMutation.isPending,
     isDeleting: deleteMutation.isPending,
-    error: employeesQuery.error?.message,
-    isEmpty: !employeesQuery.isLoading && employeeList.length === 0,
-
-    // Actions
-    handleSearch: setSearchInput,
-    handlePageChange: setPage,
-    refresh: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
-    
-    // Mutations
-    saveEmployee: async (payload, employeeId) => {
-      if (employeeId) {
-        // Business Rule: Strip password during update
-        const { password, ...updateData } = payload; 
-        return updateMutation.mutateAsync({ id: employeeId, data: updateData });
-      } else {
-        return createMutation.mutateAsync(payload);
-      }
-    },
-    deleteEmployee: async (id) => {
-      return deleteMutation.mutateAsync(id);
-    }
+    error: queryError?.message,
+    isEmpty: employees.length === 0 && !loading,
+    pagination,
+    keyword: searchInput,
+    handleSearch,
+    handlePageChange,
+    saveEmployee,
+    deleteEmployee,
+    refresh: refetch,
   };
 };

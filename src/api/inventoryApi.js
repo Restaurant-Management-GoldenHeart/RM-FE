@@ -20,6 +20,13 @@ export const inventoryApi = {
     });
   },
 
+  // 3.5. Lấy thống kê tổng quan tồn kho
+  getInventorySummary: async ({ branchId } = {}) => {
+    return apiClient.get('/inventory/summary', {
+      params: { branchId }
+    });
+  },
+
   // 4. Lấy chi tiết một inventory item
   getInventoryItemById: async (inventoryId) => {
     return apiClient.get(`/inventory/${inventoryId}`);
@@ -31,6 +38,10 @@ export const inventoryApi = {
       params: { page, size }
     });
   },
+
+  // Báo cáo di chuyển kho
+  getMovementReport: (branchId, fromDate, toDate, groupBy = 'DAY') =>
+    apiClient.get('/inventory/reports/movements', { params: { branchId, fromDate, toDate, groupBy } }),
 
   // 6. Tạo mới inventory item
   createInventoryItem: async (data) => {

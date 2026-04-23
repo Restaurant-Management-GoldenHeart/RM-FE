@@ -1,157 +1,191 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { inventoryApi } from '../api/inventoryApi';
+import { employeeApi } from '../api/employeeApi';
+import { useAuthStore } from '../store/useAuthStore';
 
 /**
- * useInventory - Custom hook for Inventory Management
- * @description Centralizes data fetching, mutations, and debounced search logic.
+ * useInventory - Hook quản lý kho hàng chuẩn Production.
+ * Phân tách Logic khỏi UI, xử lý caching và đồng bộ hóa chi nhánh.
  */
-export function useInventory() {
+export const useInventory = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
 
-  // --- Search & Pagination State ---
-  const [searchInput, setSearchInput] = useState('');
+  // --- State: Filter & Pagination ---
+  const [filterBranchId, setFilterBranchId] = useState(user?.branchId || null);
   const [keyword, setKeyword] = useState('');
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const [page, setPage] = useState(0);
-  const pageSize = 10;
-
-  // Debouncing logic for keyword
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setKeyword(searchInput);
-      setPage(0); // Reset to first page on search
-    }, 500); // 500ms debounce
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  const size = 10;
 
   // --- Queries ---
-  
-  // 1. Fetch Measurement Units
-  const unitsQuery = useQuery({
+
+  // 1. Danh sách chi nhánh
+  const { data: branchesRes, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches'],
+    queryFn: employeeApi.getBranches,
+    staleTime: 300000, // 5 phút
+  });
+  const branches = branchesRes?.data || [];
+
+  // Tự động chọn chi nhánh đầu tiên cho Admin nếu chưa chọn
+  useEffect(() => {
+    if (user?.role === 'ADMIN' && !filterBranchId && branches.length > 0) {
+      setFilterBranchId(branches[0].id);
+    }
+  }, [branches, filterBranchId, user?.role]);
+
+  // 2. Danh sách nguyên liệu trong kho
+  const {
+    data: itemsRes,
+    isLoading: loading,
+    isFetching,
+    error: queryError,
+    refetch
+  } = useQuery({
+    queryKey: ['inventoryItems', filterBranchId, keyword, lowStockOnly, page],
+    queryFn: () => inventoryApi.getInventoryItems({ 
+      keyword, 
+      branchId: filterBranchId, 
+      lowStockOnly, 
+      page, 
+      size 
+    }),
+    placeholderData: keepPreviousData,
+    retry: 1,
+  });
+
+  const items = itemsRes?.data?.content || [];
+  const pagination = {
+    page: itemsRes?.data?.number || 0,
+    totalPages: itemsRes?.data?.totalPages || 0,
+    totalElements: itemsRes?.data?.totalElements || 0,
+  };
+
+  // 3. Thống kê tổng quan
+  const { data: summaryRes } = useQuery({
+    queryKey: ['inventorySummary', filterBranchId],
+    queryFn: () => inventoryApi.getInventorySummary({ branchId: filterBranchId }),
+    enabled: !!filterBranchId || user?.role === 'ADMIN',
+  });
+  const summary = summaryRes?.data || { totalItems: 0, totalInventoryValue: 0, lowStockCount: 0 };
+
+  // 4. Cảnh báo tồn kho thấp
+  const { data: alertsRes } = useQuery({
+    queryKey: ['lowStockAlerts', filterBranchId],
+    queryFn: () => inventoryApi.getLowStockAlerts({ branchId: filterBranchId }),
+    enabled: !!filterBranchId || user?.role === 'ADMIN',
+  });
+  const alerts = alertsRes?.data || [];
+
+  // 5. Đơn vị tính
+  const { data: unitsRes } = useQuery({
     queryKey: ['measurementUnits'],
     queryFn: inventoryApi.getMeasurementUnits,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 300000,
   });
-
-  // 2. Fetch Low Stock Alerts
-  const alertsQuery = useQuery({
-    queryKey: ['lowStockAlerts'],
-    queryFn: () => inventoryApi.getLowStockAlerts(),
-    refetchInterval: 30000, // Sync every 30s
+  const units = unitsRes?.data || [];
+  
+  // 6. Báo cáo di chuyển kho hôm nay (để lấy giá trị nhập hàng)
+  const today = new Date().toLocaleDateString('sv-SE'); // sv-SE gives YYYY-MM-DD
+  const { data: todayMovementRes } = useQuery({
+    queryKey: ['inventoryMovementReport', filterBranchId, today],
+    queryFn: () => inventoryApi.getMovementReport(filterBranchId, today, today),
+    enabled: !!filterBranchId || user?.role === 'ADMIN',
   });
-
-  // 3. Fetch Paginated Inventory Items
-  const itemsQuery = useQuery({
-    queryKey: ['inventoryItems', keyword, page],
-    queryFn: () => inventoryApi.getInventoryItems({ keyword, page, size: pageSize }),
-    placeholderData: keepPreviousData, // Smooth pagination in v5
-  });
+  const todayMovement = todayMovementRes?.data || { totalReceiptValue: 0 };
 
   // --- Mutations ---
 
-  const extractError = (err) => {
-    // If it's a field-level validation error from backend
-    if (err.response?.data?.errors) {
-      return err.response.data.errors;
+  // Lưu (Thêm mới/Cập nhật)
+  const saveMutation = useMutation({
+    mutationFn: ({ id, data }) => id 
+      ? inventoryApi.updateInventoryItem({ id, data }) 
+      : inventoryApi.createInventoryItem(data),
+    onSuccess: (_, variables) => {
+      toast.success(variables.id ? 'Cập nhật kho thành công' : 'Thêm nguyên liệu thành công');
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      queryClient.invalidateQueries({ queryKey: ['inventorySummary'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovementReport'] });
+    },
+    onError: (err) => {
+      const msg = err.response?.data?.message || 'Thao tác kho thất bại';
+      toast.error(msg);
     }
-    // If it's a business logic error (e.g., duplicate name)
-    if (err.response?.data?.message) {
-      return err.response.data.message;
+  });
+
+  // Xóa
+  const deleteMutation = useMutation({
+    mutationFn: (id) => inventoryApi.deleteInventoryItem(id),
+    onSuccess: () => {
+      toast.success('Đã xóa nguyên liệu khỏi kho');
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      queryClient.invalidateQueries({ queryKey: ['inventorySummary'] });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Xóa thất bại');
     }
-    return err.message || 'Đã xảy ra lỗi hệ thống';
+  });
+
+  // --- Handlers ---
+  const handleSearch = (val) => {
+    setKeyword(val);
+    setPage(0);
   };
 
-  const createMutation = useMutation({
-    mutationFn: inventoryApi.createInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
-      queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
-      toast.success('Thêm nguyên vật liệu thành công!');
-    },
-    onError: (err) => {
-      const errorPayload = extractError(err);
-      if (typeof errorPayload === 'string') {
-        toast.error(errorPayload);
-      }
-      // If it's an object, the Form modal will handle field mapping
+  const handleBranchChange = (branchId) => {
+    setFilterBranchId(branchId);
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const saveItem = async (data, id) => {
+    try {
+      await saveMutation.mutateAsync({ id, data });
+      return true;
+    } catch (e) {
+      return false;
     }
-  });
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: inventoryApi.updateInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
-      queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
-      toast.success('Cập nhật nguyên vật liệu thành công!');
-    },
-    onError: (err) => {
-      const errorPayload = extractError(err);
-      if (typeof errorPayload === 'string') {
-        if (errorPayload.toLowerCase().includes('unit')) {
-           toast.error('Không thể thay đổi đơn vị tính của nguyên liệu đã sử dụng');
-        } else {
-           toast.error(errorPayload);
-        }
-      }
+  const deleteItem = async (id) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      return true;
+    } catch (e) {
+      return false;
     }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: inventoryApi.deleteInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
-      queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
-      toast.success('Đã xóa nguyên vật liệu khỏi kho!');
-    },
-    onError: (err) => toast.error(err.message || 'Lỗi khi xóa nguyên vật liệu')
-  });
-
-  // --- Derived Values & Structure ---
-  const inventoryList = useMemo(() => itemsQuery.data?.data?.content || [], [itemsQuery.data]);
-  const totalPages = useMemo(() => itemsQuery.data?.data?.totalPages || 1, [itemsQuery.data]);
-  const unitsList = useMemo(() => unitsQuery.data?.data || [], [unitsQuery.data]);
-  const alertsList = useMemo(() => alertsQuery.data?.data || [], [alertsQuery.data]);
+  };
 
   return {
-    // States
-    inventoryList,
-    totalPages,
-    unitsList,
-    alertsList,
-    page,
-    searchInput,
-    
-    // Status
-    isLoading: itemsQuery.isLoading,
-    isFetching: itemsQuery.isFetching,
-    isError: itemsQuery.isError,
-    error: itemsQuery.error,
-    isSaving: createMutation.isPending || updateMutation.isPending,
+    items,
+    summary,
+    alerts,
+    units,
+    branches,
+    loading,
+    isFetching,
+    branchesLoading,
+    isSaving: saveMutation.isPending,
     isDeleting: deleteMutation.isPending,
-
-    // Actions
-    setPage,
-    setSearchInput,
-    handleFormSubmit: async (data, selectedId) => {
-      if (selectedId) {
-        return updateMutation.mutateAsync({ id: selectedId, data });
-      } else {
-        return createMutation.mutateAsync(data);
-      }
-    },
-    handleDelete: async (item) => {
-      if (item.quantity > 0) {
-        toast.error('Không thể xóa món hàng có số lượng > 0', { icon: '⚠️' });
-        return;
-      }
-      if (window.confirm(`Bạn có chắc muốn xóa nguyên liệu "${item.ingredientName || item.itemName}"?`)) {
-        return deleteMutation.mutateAsync(item.inventoryId || item.id);
-      }
-    },
-    refresh: () => {
-       queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
-       queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
-    }
+    error: queryError?.message,
+    pagination,
+    todayMovement,
+    filterBranchId,
+    keyword,
+    lowStockOnly,
+    setLowStockOnly,
+    handleSearch,
+    handleBranchChange,
+    handlePageChange,
+    saveItem,
+    deleteItem,
+    refresh: refetch,
   };
-}
+};

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { UtensilsCrossed, Eye, EyeOff, Loader2 } from 'lucide-react';
+import ForgotPasswordModal from '../components/auth/ForgotPasswordModal';
 
 // Role → default redirect path
 const ROLE_HOME = {
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   const { login, loading, error, isAuthenticated, role, clearError } = useAuthStore();
   const navigate = useNavigate();
@@ -161,6 +163,16 @@ export default function LoginPage() {
               {fieldErrors.password && (
                 <p className="text-red-400 text-xs mt-1.5">{fieldErrors.password}</p>
               )}
+              
+              <div className="flex justify-end mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotModalOpen(true)}
+                  className="text-amber-500/60 hover:text-amber-500 text-xs font-medium transition-colors"
+                >
+                  Quên mật khẩu?
+                </button>
+              </div>
             </div>
 
             {/* Submit */}
@@ -198,6 +210,11 @@ export default function LoginPage() {
           © 2026 GoldenHeart Restaurant Management
         </p>
       </div>
+
+      <ForgotPasswordModal 
+        isOpen={isForgotModalOpen} 
+        onClose={() => setIsForgotModalOpen(false)} 
+      />
     </div>
   );
 }
