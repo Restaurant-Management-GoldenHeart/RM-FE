@@ -6,7 +6,7 @@ import { authApi } from '../api/authApi';
 import {
   User, Mail, Phone, MapPin, Calendar, Save, Edit3,
   X, Loader2, ShieldCheck, Building2, BadgeCheck,
-  Hash, Clock, Camera, Lock, Eye, EyeOff, KeyRound,
+  Hash, Clock, Camera, Lock,
   ChevronRight, AlertCircle
 } from 'lucide-react';
 
@@ -88,17 +88,6 @@ const validateField = (name, value) => {
       return null;
     case 'phone':
       if (v && !/^\d{10,11}$/.test(v)) return 'Số điện thoại phải từ 10-11 số';
-      return null;
-    case 'oldPassword':
-      if (!v) return 'Vui lòng nhập mật khẩu cũ';
-      return null;
-    case 'newPassword':
-      if (!v) return 'Vui lòng nhập mật khẩu mới';
-      if (v.length < 8) return 'Mật khẩu phải từ 8 ký tự';
-      if (!/(?=.*[A-Za-z])(?=.*\d)/.test(v)) return 'Phải bao gồm chữ và số';
-      return null;
-    case 'confirmPassword':
-      if (!v) return 'Vui lòng xác nhận mật khẩu';
       return null;
     default:
       return null;
@@ -252,142 +241,7 @@ function PersonalTab({ profile, onUpdate }) {
   );
 }
 
-function SecurityTab() {
-  const [form, setForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
-  const [errors, setErrors] = useState({});
-  const [showPwd, setShowPwd] = useState({});
-  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-    const err = validateField(name, value);
-    setErrors(prev => ({ ...prev, [name]: err || undefined }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const newErrors = {};
-    Object.keys(form).forEach(f => {
-      const err = validateField(f, form[f]);
-      if (err) newErrors[f] = err;
-    });
-    if (form.newPassword !== form.confirmPassword) {
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-    }
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
-
-    setLoading(true);
-    try {
-      await authApi.changePassword({
-        oldPassword: form.oldPassword,
-        newPassword: form.newPassword
-      });
-      toast.success('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
-      // Thường sẽ redirect sang login
-      setTimeout(() => window.location.href = '/login', 2000);
-    } catch (err) {
-      toast.error(err.message || 'Đổi mật khẩu thất bại');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const inputCls = (field) => `
-    w-full pl-11 pr-11 py-3 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium
-    focus:bg-white focus:border-gold-500 outline-none transition-all
-    ${errors[field] ? 'border-red-500 bg-red-50' : ''}
-  `;
-
-  return (
-    <div className="max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="space-y-1">
-        <h3 className="text-lg font-black text-gray-900 tracking-tight uppercase">Bảo mật tài khoản</h3>
-        <p className="text-xs font-bold text-gray-400">Thay đổi mật khẩu định kỳ để bảo vệ tài khoản của bạn.</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu hiện tại</label>
-          <div className="relative">
-            <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input 
-              name="oldPassword" 
-              type={showPwd.old ? 'text' : 'password'} 
-              value={form.oldPassword} 
-              onChange={handleChange} 
-              className={inputCls('oldPassword')} 
-            />
-            <button 
-              type="button" 
-              onClick={() => setShowPwd(p => ({ ...p, old: !p.old }))}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600"
-            >
-              {showPwd.old ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {errors.oldPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.oldPassword}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
-          <div className="relative">
-            <KeyRound size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input 
-              name="newPassword" 
-              type={showPwd.new ? 'text' : 'password'} 
-              value={form.newPassword} 
-              onChange={handleChange} 
-              className={inputCls('newPassword')} 
-            />
-            <button 
-              type="button" 
-              onClick={() => setShowPwd(p => ({ ...p, new: !p.new }))}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600"
-            >
-              {showPwd.new ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {errors.newPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.newPassword}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Xác nhận mật khẩu</label>
-          <div className="relative">
-            <ShieldCheck size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input 
-              name="confirmPassword" 
-              type={showPwd.confirm ? 'text' : 'password'} 
-              value={form.confirmPassword} 
-              onChange={handleChange} 
-              className={inputCls('confirmPassword')} 
-            />
-          </div>
-          {errors.confirmPassword && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.confirmPassword}</p>}
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-gray-900 text-white text-xs font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-black/10 active:scale-95 disabled:opacity-50"
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : 'Cập nhật mật khẩu'}
-        </button>
-      </form>
-
-      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
-        <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="text-xs font-black text-amber-900 uppercase">Lưu ý quan trọng</p>
-          <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
-            Sau khi đổi mật khẩu, bạn sẽ bị đăng xuất khỏi tất cả các thiết bị đang đăng nhập để đảm bảo an toàn.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
@@ -419,7 +273,6 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'personal', label: 'Thông tin cá nhân', icon: User },
-    { id: 'security', label: 'Bảo mật & Mật khẩu', icon: ShieldCheck },
   ];
 
   return (
@@ -485,11 +338,7 @@ export default function ProfilePage() {
         {/* Content Area */}
         <div className="md:col-span-9">
           <div className="premium-card p-8 min-h-[500px]">
-            {activeTab === 'personal' ? (
-              <PersonalTab profile={profile} onUpdate={setProfile} />
-            ) : (
-              <SecurityTab />
-            )}
+            <PersonalTab profile={profile} onUpdate={setProfile} />
           </div>
         </div>
       </div>
