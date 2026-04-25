@@ -44,12 +44,9 @@ const StaffPosPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Tải thực đơn từ BE
-    fetchInitialData();
-
-    // Lấy branchId từ authStore — không hardcode
-    // Nếu chưa có branchId → dùng 1 làm fallback (Branch Quận 1)
     const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+    // Tải thực đơn từ BE theo đúng chi nhánh
+    fetchInitialData(branchId);
     fetchTables(branchId);
   }, []); // Chỉ chạy một lần khi mount
 
