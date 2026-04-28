@@ -5,6 +5,8 @@ import { menuApi } from '../api/menuApi';
 import { inventoryApi } from '../api/inventoryApi';
 import { employeeApi } from '../api/employeeApi';
 import { extractErrorMessage } from '../utils/errorHelper';
+import { useAuthStore } from '../store/useAuthStore';
+import { useBranchContext } from '../context/BranchContext';
 
 /**
  * useMenu - Custom hook for Menu Management
@@ -25,8 +27,9 @@ export function useMenu() {
   const categoriesQuery = useQuery({
     queryKey: ['menuCategories'],
     queryFn: async () => {
-      const res = await menuApi.getCategories();
-      return res.data || [];
+      // Request a large size to get all categories for dropdowns
+      const res = await menuApi.getCategories({ size: 100 });
+      return res.data?.content || [];
     },
     staleTime: 1000 * 60 * 30, // Cache trong 30 phút vì danh mục ít thay đổi
   });
@@ -50,6 +53,9 @@ export function useMenu() {
     staleTime: 1000 * 60 * 5, // 5 mins
   });
 
+  // Context & Auth for Branch Filtering
+  const { buildApiParams, selectedBranchId } = useBranchContext();
+
   // 1. Fetch Menu Items
   const { 
     data, 
@@ -58,10 +64,11 @@ export function useMenu() {
     error, 
     refetch 
   } = useQuery({
-    queryKey: ['menuItems', { keyword, categoryId, page }],
+    queryKey: ['menuItems', { keyword, categoryId, branchId: selectedBranchId, page }],
     queryFn: () => menuApi.getMenuItems({ 
       keyword, 
       categoryId, 
+      ...buildApiParams(),
       page, 
       size: pageSize 
     }),
@@ -73,7 +80,7 @@ export function useMenu() {
 
   // 3. Mutations
   const createMutation = useMutation({
-    mutationFn: (payload) => menuApi.createMenuItem(payload),
+    mutationFn: (payload) => menuApi.createMenuItem({ ...payload, ...buildApiParams() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
       toast.success('Thêm món ăn thành công!');
@@ -85,7 +92,7 @@ export function useMenu() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }) => menuApi.updateMenuItem(id, payload),
+    mutationFn: ({ id, payload }) => menuApi.updateMenuItem(id, { ...payload, ...buildApiParams() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
       toast.success('Cập nhật món ăn thành công!');
@@ -103,6 +110,18 @@ export function useMenu() {
       toast.success('Đã xóa món ăn khỏi thực đơn');
     },
     onError: (err) => toast.error(err.message || 'Xóa thất bại'),
+  });
+
+    const createCategoryMutation = useMutation({
+    mutationFn: (payload) => menuApi.createCategory(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
+      toast.success('Thêm danh mục thành công!');
+    },
+    onError: (err) => {
+      const msg = extractError(err);
+      toast.error(typeof msg === 'string' ? msg : 'Thêm danh mục thất bại.');
+    },
   });
 
   // Derived Values
@@ -147,7 +166,9 @@ export function useMenu() {
     createMenuItem: createMutation.mutateAsync,
     updateMenuItem: updateMutation.mutateAsync,
     deleteMenuItem: deleteMutation.mutateAsync,
+    createCategory: createCategoryMutation.mutateAsync,
     isSaving: createMutation.isPending || updateMutation.isPending,
+    isSavingCategory: createCategoryMutation.isPending,
     isDeleting: deleteMutation.isPending,
   };
 }

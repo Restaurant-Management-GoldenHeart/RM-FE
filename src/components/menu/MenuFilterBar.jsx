@@ -22,47 +22,53 @@ export function MenuFilterBar({ keyword, onSearch, categoryId, onCategoryChange,
   const isFiltered = keyword || categoryId;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-6">
+    <div className="space-y-3">
       {/* Search Input */}
-      <div className="relative flex-1 min-w-[280px]">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="relative w-full group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
         <input
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="Tìm kiếm theo tên món ăn..."
-          className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-sm placeholder-gray-400 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 transition-all"
+          className="w-full pl-11 pr-4 py-3 md:py-3.5 bg-white border border-gray-200 rounded-xl md:rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500 transition-all placeholder:text-gray-300 shadow-sm"
         />
+        {inputValue && (
+          <button 
+            onClick={() => setInputValue('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Category Filter */}
-      <div className="relative min-w-[200px]">
-        <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <select
-          value={categoryId}
-          onChange={(e) => onCategoryChange(e.target.value)}
-          className="w-full pl-11 pr-10 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 transition-all appearance-none cursor-pointer"
+      {/* Chip Filters (Horizontal Scroll) */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <button 
+          onClick={() => onCategoryChange('')}
+          className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${
+            !categoryId 
+              ? 'bg-gray-900 text-white shadow-md' 
+              : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
+          }`}
         >
-          <option value="">Tất cả danh mục</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-      </div>
-
-      {/* Clear Filter */}
-      {isFiltered && (
-        <button
-          onClick={handleClear}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all text-sm font-bold active:scale-95"
-        >
-          <X className="w-4 h-4" />
-          <span>Xóa lọc</span>
+          Tất cả món
         </button>
-      )}
+        {categories.map((cat) => (
+          <button 
+            key={cat.id}
+            onClick={() => onCategoryChange(cat.id)}
+            className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${
+              categoryId === cat.id 
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' 
+                : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

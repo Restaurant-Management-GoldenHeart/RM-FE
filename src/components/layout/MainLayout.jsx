@@ -9,6 +9,9 @@ import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { removeToken } from '../../api/apiClient';
+import BranchSelectionModal from '../BranchSelectionModal';
+import Header from './Header';
+import BottomNav from './BottomNav';
 
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -58,19 +61,24 @@ export default function MainLayout() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-[100dvh] w-full bg-gray-50 flex overflow-hidden">
+      <BranchSelectionModal />
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
 
-      {/* Main content */}
-      <main
-        className={`flex-1 min-h-screen transition-all duration-300 ${
-          collapsed ? 'ml-16' : 'ml-64'
-        }`}
+      {/* Main content wrapper */}
+      <div
+        className={`flex flex-col flex-1 h-full min-w-0 overflow-hidden transition-[margin] duration-300 ${
+          collapsed ? 'md:ml-16' : 'md:ml-64'
+        } ml-0`}
       >
-        <div className="min-h-screen p-6">
-          <Outlet />
-        </div>
-      </main>
+        <Header />
+        <main className="flex-1 w-full overflow-x-hidden overflow-y-auto relative" id="main-scroll-container">
+          <div className="px-4 pt-4 pb-24 md:p-6 md:pb-6 w-full max-w-full">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+      <BottomNav />
     </div>
   );
 }

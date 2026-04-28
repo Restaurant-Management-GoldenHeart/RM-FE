@@ -1,15 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { employeeApi } from '../api/employeeApi';
-import { menuApi } from '../api/menuApi';
-import { customerApi } from '../api/customerApi';
-import { inventoryApi } from '../api/inventoryApi';
+import { useBranchContext } from '../context/BranchContext';
+import { reportApi } from '../api/reportApi';
 import {
   Users, UtensilsCrossed, UserCircle, TrendingUp,
   ArrowRight, ChefHat, ShoppingCart, Calendar,
   Clock, Activity, Package, AlertCircle, AlertTriangle,
-  RefreshCw, Loader2
+  RefreshCw, Loader2, Store
 } from 'lucide-react';
 
 /**
@@ -104,6 +102,7 @@ const ROLE_CONFIG = {
 
 export default function DashboardPage() {
   const { user, role } = useAuthStore();
+  const { buildApiParams, selectedBranchName, isAllBranches, isInitialized } = useBranchContext();
   const isMounted = useRef(true);
   const isFetching = useRef(false);
   
@@ -115,7 +114,6 @@ export default function DashboardPage() {
     inventoryItems: 0 
   });
   
-  // Granular loading states per metric
   const [loading, setLoading] = useState({
     employees: true,
     customers: true,
@@ -123,7 +121,6 @@ export default function DashboardPage() {
     inventoryItems: true
   });
 
-  // Independent error states per metric
   const [errors, setErrors] = useState({
     employees: false,
     customers: false,
@@ -134,8 +131,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = useCallback(async () => {
-    // Race-condition guard: block overlapping requests using stable Ref
-    if (isFetching.current) return;
+    if (isFetching.current || !isInitialized) return;
 
     isFetching.current = true;
     setRefreshing(true);
@@ -143,30 +139,22 @@ export default function DashboardPage() {
     setErrors({ employees: false, customers: false, menuItems: false, inventoryItems: false });
 
     try {
-      const results = await Promise.allSettled([
-        employeeApi.getEmployees({ page: 0, size: 1 }),
-        customerApi.getCustomers({ page: 0, size: 1 }),
-        menuApi.getMenuItems({ page: 0, size: 1 }),
-        inventoryApi.getInventoryItems({ page: 0, size: 1 }),
-      ]);
+      const res = await reportApi.getDashboardReport(buildApiParams());
 
       if (!isMounted.current) return;
 
-      const [emp, cus, menu, inv] = results;
+      const data = res?.data || {};
 
       setStats({
-        employees: emp.status === 'fulfilled' ? (emp.value?.data?.totalElements ?? 0) : 0,
-        customers: cus.status === 'fulfilled' ? (cus.value?.data?.totalElements ?? 0) : 0,
-        menuItems: menu.status === 'fulfilled' ? (menu.value?.data?.totalElements ?? 0) : 0,
-        inventoryItems: inv.status === 'fulfilled' ? (inv.value?.data?.totalElements ?? 0) : 0,
+        employees: data.totalEmployees || 0,
+        customers: data.totalCustomers || 0,
+        menuItems: data.totalMenuItems || 0,
+        inventoryItems: data.totalInventoryItems || 0,
       });
-
-      setErrors({
-        employees: emp.status === 'rejected',
-        customers: cus.status === 'rejected',
-        menuItems: menu.status === 'rejected',
-        inventoryItems: inv.status === 'rejected',
-      });
+      setErrors({ employees: false, customers: false, menuItems: false, inventoryItems: false });
+    } catch (error) {
+      if (!isMounted.current) return;
+      setErrors({ employees: true, customers: true, menuItems: true, inventoryItems: true });
     } finally {
       isFetching.current = false;
       if (isMounted.current) {
@@ -174,7 +162,7 @@ export default function DashboardPage() {
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [buildApiParams, isInitialized]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -200,44 +188,48 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-10 animate-fade-in max-w-7xl mx-auto px-4 sm:px-0 pb-10">
+    <div className="space-y-10 animate-fade-in max-w-7xl mx-auto pb-10">
       {/* ── Header Area ── */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gold-600 rounded-lg shadow-lg shadow-gold-600/20">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
+            <div className="p-2 bg-gold-600 rounded-lg shadow-lg shadow-gold-600/20 shrink-0">
               <Activity className="w-5 h-5 text-white" />
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${roleConfig.color}`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${roleConfig.color} whitespace-nowrap`}>
               {roleConfig.label}
             </span>
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight truncate">
             {greeting}, <span className="text-gold-600">{displayName}</span>
           </h1>
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-1.5 text-gray-500 text-sm font-medium">
-              <Calendar className="w-4 h-4 text-gray-400" />
+          <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-3">
+            <div className="flex items-center gap-1.5 text-gray-500 text-xs md:text-sm font-medium whitespace-nowrap">
+              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
               <span>{dateStr}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-gray-500 text-sm font-medium">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <span>Bắt đầu phiên lúc 08:30</span>
+            <div className="flex items-center gap-1.5 text-gray-500 text-xs md:text-sm font-medium whitespace-nowrap">
+              <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+              <span>Phiên làm việc</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs md:text-sm font-bold border border-amber-200 truncate max-w-full">
+              <Store className="w-4 h-4 shrink-0" />
+              <span className="truncate">CN: {selectedBranchName}</span>
             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
           <button 
             onClick={fetchStats}
             disabled={refreshing}
-            className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all active:scale-95 shadow-sm disabled:opacity-50 group whitespace-nowrap"
           >
-            {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />}
-            Làm mới dữ liệu
+            {refreshing ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500 shrink-0" />}
+            Làm mới
           </button>
-          <button className="px-6 py-2.5 bg-gold-600 text-white rounded-xl text-sm font-bold hover:bg-gold-700 transition-all shadow-lg shadow-gold-600/20 active:scale-95">
-            Báo cáo hôm nay
+          <button className="flex-1 md:flex-none px-4 md:px-6 py-2.5 bg-gold-600 text-white rounded-xl text-sm font-bold hover:bg-gold-700 transition-all shadow-lg shadow-gold-600/20 active:scale-95 whitespace-nowrap">
+            Báo cáo
           </button>
         </div>
       </div>
