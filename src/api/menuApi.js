@@ -82,7 +82,13 @@ export const menuApi = {
    *
    * @returns {Promise<ApiResponse<CategoryResponse[]>>}
    */
-  getCategories: () => apiClient.get('/menu-categories'),
+  getCategories: (params = {}) => apiClient.get('/categories', { params }),
+
+  /**
+   * Tạo danh mục mới
+   * @param {{ name: string, description?: string }} payload
+   */
+  createCategory: (payload) => apiClient.post('/categories', payload),
 };
 
 export default menuApi;

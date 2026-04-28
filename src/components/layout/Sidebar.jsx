@@ -97,7 +97,8 @@ export default function Sidebar({ collapsed, onToggle }) {
     <aside
       className={`
         h-screen flex flex-col fixed top-0 left-0 z-30
-        transition-all duration-300 ease-in-out
+        hidden md:flex
+        transition-[width] duration-300 ease-in-out
         ${collapsed ? 'w-16' : 'w-64'}
         bg-white border-r border-gray-200 shadow-sm
       `}
@@ -128,26 +129,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         </button>
       </div>
 
-      {/* User info */}
-      {!collapsed && (
-        <div className="px-4 py-6 border-b border-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gold-50 border border-gold-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-gold-700 font-semibold text-sm">
-                {(user?.fullName || user?.username || '?')[0].toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-gray-900 font-semibold text-sm truncate">
-                {user?.fullName || user?.username || 'Người dùng'}
-              </p>
-              <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border mt-0.5 font-medium ${roleBadge.color}`}>
-                {roleBadge.label}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">

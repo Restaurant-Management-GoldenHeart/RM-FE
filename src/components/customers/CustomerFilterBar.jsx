@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, RefreshCw, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 /**
  * CustomerFilterBar - Search input and management controls
@@ -9,52 +9,42 @@ export const CustomerFilterBar = ({
   searchInput, 
   onSearchInputChange, 
   onSearchSubmit, 
-  onRefresh, 
   onClear, 
-  isFiltered, 
-  loading 
+  isFiltered
 }) => {
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-6 animate-fade-in">
-      <form onSubmit={onSearchSubmit} className="relative flex-1 min-w-[320px] group">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
+    <div className="space-y-3 mb-6 animate-fade-in">
+      <form onSubmit={onSearchSubmit} className="relative w-full group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
         <input
           value={searchInput}
           onChange={(e) => onSearchInputChange(e.target.value)}
-          placeholder="Tìm theo tên, email, số điện thoại hoặc mã khách hàng..."
-          className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-white border border-gray-200 text-gray-900 text-sm placeholder-gray-400 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 transition-all shadow-sm group-hover:border-gray-300"
+          placeholder="Tìm tên, SĐT, mã KH..."
+          className="w-full pl-11 pr-4 py-3 md:py-3.5 bg-white border border-gray-200 rounded-xl md:rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500 transition-all placeholder:text-gray-300 shadow-sm"
         />
-      </form>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="submit"
-          onClick={onSearchSubmit}
-          className="px-6 py-3.5 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-gray-200 active:scale-95"
-        >
-          Tìm kiếm
-        </button>
-
-        {isFiltered && (
-          <button
+        {searchInput && (
+          <button 
+            type="button"
             onClick={onClear}
-            className="flex items-center gap-2 px-4 py-3.5 rounded-2xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all text-xs font-black uppercase tracking-widest active:scale-95"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
           >
             <X className="w-4 h-4" />
-            Xóa lọc
           </button>
         )}
+      </form>
 
-        <div className="w-[1px] h-8 bg-gray-100 mx-2" />
-
-        <button
-          onClick={onRefresh}
-          className={`w-12 h-12 flex items-center justify-center rounded-2xl bg-white border border-gray-100 text-gray-400 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-100 transition-all shadow-sm active:scale-95 ${loading ? 'opacity-50' : ''}`}
-          title="Làm mới danh sách"
-        >
-          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+      {isFiltered && (
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+          <button
+            type="button"
+            onClick={onClear}
+            className="shrink-0 flex items-center gap-2 px-4 py-2 md:py-2.5 rounded-full text-gray-500 hover:text-gray-900 bg-white border border-gray-200 hover:border-gray-300 transition-all text-[10px] font-black uppercase tracking-widest active:scale-95"
+          >
+            <X className="w-3.5 h-3.5" />
+            Xóa bộ lọc
+          </button>
+        </div>
+      )}
     </div>
   );
 };

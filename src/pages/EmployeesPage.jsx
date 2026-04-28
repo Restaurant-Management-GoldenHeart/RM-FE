@@ -48,6 +48,13 @@ export default function EmployeesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  const filteredEmployees = employees.filter(emp => {
+    if (statusFilter === 'ACTIVE') return emp.status === 'ACTIVE';
+    if (statusFilter === 'INACTIVE') return emp.status !== 'ACTIVE';
+    return true;
+  });
 
   // --- Handlers ---
   const handleOpenAdd = () => {
@@ -76,20 +83,21 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-[1600px] mx-auto pb-10">
+    <>
+      <div className="space-y-6 animate-fade-in max-w-[1600px] mx-auto pb-10">
       
       {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 text-white">
-            <Users size={28} />
+      <div className="flex items-center justify-between gap-4 md:px-0 mt-2 md:mt-0">
+        <div className="flex items-center gap-4 md:gap-5">
+          <div className="w-12 h-12 md:w-14 md:h-14 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 text-white shrink-0">
+            <Users className="w-6 h-6 md:w-7 md:h-7" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight leading-none">
-              Quản lý Nhân sự
+            <h1 className="text-xl md:text-3xl font-black text-gray-900 tracking-tight leading-none">
+              Nhân sự
             </h1>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">
-              Human Resources Portal
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1 md:mt-2">
+              Human Resources
             </p>
           </div>
         </div>
@@ -97,14 +105,14 @@ export default function EmployeesPage() {
         <div className="flex items-center gap-3">
             <button
               onClick={refresh}
-              className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white border border-gray-100 text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-all shadow-sm active:scale-95"
+              className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl md:rounded-2xl bg-white border border-gray-100 text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-all shadow-sm active:scale-95 shrink-0"
               title="Làm mới dữ liệu"
             >
               <RefreshCw className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={handleOpenAdd}
-              className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl shadow-gray-900/10 active:scale-95 group"
+              className="hidden md:flex items-center justify-center gap-2 px-8 py-3.5 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl shadow-gray-900/10 active:scale-95 group"
             >
               <UserPlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <span>Thêm nhân viên</span>
@@ -112,33 +120,56 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      {/* 2. Main Content Area */}
-      <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col min-h-[600px] transition-all duration-300">
-        
-        {/* Toolbar */}
-        <div className="p-8 border-b border-gray-100/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/40">
-          <div className="relative max-w-lg w-full group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo tên, mã hoặc email (tự động)..."
-              value={keyword}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500 transition-all placeholder:text-gray-300"
-            />
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <button className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 hover:text-gray-900 transition-all">
-              <Filter size={14} />
-              <span>Lọc dữ liệu</span>
-            </button>
-            <button className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 hover:text-gray-900 transition-all">
-              <Download size={14} />
-              <span>Xuất Excel</span>
-            </button>
-          </div>
+      {/* Mobile Sticky Search & Filter */}
+      <div className="sticky top-0 md:static z-20 bg-[#fafafb] md:bg-transparent -mx-4 px-4 md:mx-0 md:px-0 py-3 md:py-0 space-y-3">
+        <div className="relative w-full group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
+          <input
+            type="text"
+            placeholder="Tìm theo tên, SĐT..."
+            value={keyword}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 md:py-3.5 bg-white border border-gray-200 rounded-xl md:rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500 transition-all placeholder:text-gray-300 shadow-sm"
+          />
         </div>
+        
+        {/* Chip Filters (Horizontal Scroll) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:hidden">
+          <button 
+            onClick={() => setStatusFilter('ALL')}
+            className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${statusFilter === 'ALL' ? 'bg-gray-900 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-500'}`}
+          >
+            Tất cả
+          </button>
+          <button 
+            onClick={() => setStatusFilter('ACTIVE')}
+            className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${statusFilter === 'ACTIVE' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 'bg-white border border-gray-200 text-gray-500'}`}
+          >
+            Đang làm
+          </button>
+          <button 
+            onClick={() => setStatusFilter('INACTIVE')}
+            className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${statusFilter === 'INACTIVE' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-white border border-gray-200 text-gray-500'}`}
+          >
+            Nghỉ việc
+          </button>
+        </div>
+
+        {/* Desktop Toolbar Extras */}
+        <div className="hidden md:flex items-center justify-end gap-2.5">
+          <button className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 hover:text-gray-900 transition-all">
+            <Filter size={14} />
+            <span>Lọc dữ liệu</span>
+          </button>
+          <button className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 hover:text-gray-900 transition-all">
+            <Download size={14} />
+            <span>Xuất Excel</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Main Content Area */}
+      <div className="bg-transparent md:bg-white/80 md:backdrop-blur-xl md:border md:border-white/60 md:rounded-[2.5rem] md:shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col min-h-[500px] transition-all duration-300">
 
         {/* Error Notification */}
         {error && (
@@ -159,27 +190,81 @@ export default function EmployeesPage() {
           </div>
         )}
 
-        {/* Table Content */}
-        <div className="flex-1 relative overflow-x-auto overflow-y-auto">
+        {/* Content View */}
+        <div className="flex-1 relative overflow-x-hidden md:overflow-x-auto overflow-y-auto px-4 md:px-0">
           {loading ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-10 h-10 text-amber-500 animate-spin drop-shadow-md" />
-                <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.3em]">Hệ thống đang tải...</p>
-              </div>
+            <div className="md:absolute inset-0 z-10 flex flex-col md:flex-row md:items-center justify-center bg-transparent md:bg-white/50 md:backdrop-blur-sm gap-4 p-4 md:p-0">
+               {/* Mobile Skeletons */}
+               <div className="w-full space-y-3 md:hidden">
+                 {[1,2,3,4].map(i => (
+                   <div key={i} className="bg-white p-4 rounded-2xl border border-gray-100 flex gap-4 animate-pulse">
+                     <div className="w-12 h-12 bg-gray-200 rounded-2xl shrink-0" />
+                     <div className="flex-1 space-y-2 py-1">
+                       <div className="h-4 bg-gray-200 rounded w-2/3" />
+                       <div className="h-3 bg-gray-200 rounded w-1/2" />
+                     </div>
+                   </div>
+                 ))}
+               </div>
+               {/* Desktop Spinner */}
+               <div className="hidden md:flex flex-col items-center gap-4">
+                  <Loader2 className="w-10 h-10 text-amber-500 animate-spin drop-shadow-md" />
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.3em]">Đang tải dữ liệu...</p>
+               </div>
             </div>
-          ) : isEmpty ? (
-            <div className="py-32 flex flex-col items-center justify-center">
-              <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] border border-gray-100 flex items-center justify-center mb-8">
-                <Users className="w-10 h-10 text-gray-200" />
+          ) : filteredEmployees.length === 0 ? (
+            <div className="py-20 md:py-32 flex flex-col items-center justify-center bg-white md:bg-transparent rounded-3xl md:rounded-none border border-gray-100 md:border-none shadow-sm md:shadow-none">
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-gray-50 rounded-full md:rounded-[2.5rem] border border-gray-100 flex items-center justify-center mb-6">
+                <Users className="w-8 h-8 md:w-10 md:h-10 text-gray-300" />
               </div>
-              <h3 className="text-xl font-black text-gray-900 tracking-tight">Cơ sở dữ liệu trống</h3>
-              <p className="text-gray-400 text-xs mt-3 max-w-xs text-center font-medium leading-relaxed">
-                Chưa có hồ sơ nhân viên nào khớp với từ khóa của bạn. Vui lòng kiểm tra lại bộ lọc.
+              <h3 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">Chưa có nhân viên nào</h3>
+              <p className="text-gray-400 text-xs mt-2 max-w-[250px] text-center font-medium leading-relaxed">
+                Nhấn dấu + góc dưới để thêm nhân viên mới vào hệ thống.
               </p>
             </div>
           ) : (
-              <table className="w-full text-left border-collapse">
+            <>
+              {/* Mobile Card List */}
+              <div className="grid grid-cols-1 gap-3 md:hidden pb-4">
+                {filteredEmployees.map((emp) => (
+                  <div key={emp.id} onClick={() => handleOpenEdit(emp)} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.98] transition-transform relative overflow-hidden group">
+                    <div className="flex items-start gap-3 overflow-hidden">
+                      <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                        <span className="text-amber-600 font-black text-sm">
+                          {emp.fullName[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-start justify-between gap-2 min-w-0">
+                          <p className="text-sm font-black text-gray-900 leading-tight truncate min-w-0 flex-1">
+                            {emp.fullName}
+                          </p>
+                          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide whitespace-nowrap ${emp.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
+                            {emp.status === 'ACTIVE' ? 'Đang làm' : 'Nghỉ'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                          {emp.roleName}
+                        </p>
+                        
+                        <div className="mt-2.5 space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                            <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="truncate">{emp.phone || "Chưa cập nhật SĐT"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-gray-500 font-bold bg-gray-50 rounded-lg px-2 py-1 min-w-0 overflow-hidden">
+                            <span className="text-amber-600 shrink-0">CN:</span>
+                            <span className="truncate">{emp.branchName || 'Trụ sở chính'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table */}
+              <table className="hidden md:table w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100/50">
                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[300px]">Nhân sự</th>
@@ -190,7 +275,7 @@ export default function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100/50">
-                  {employees.map((emp) => (
+                  {filteredEmployees.map((emp) => (
                     <tr key={emp.id} className="group hover:bg-amber-50/40 transition-colors duration-300">
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
@@ -261,7 +346,8 @@ export default function EmployeesPage() {
                     </tr>
                   ))}
                 </tbody>
-            </table>
+              </table>
+            </>
           )}
         </div>
 
@@ -308,6 +394,8 @@ export default function EmployeesPage() {
         )}
       </div>
 
+      </div>
+
       {/* 4. Overlay Components (Modals) */}
       
       {/* Employee Form Modal (Create / Update) */}
@@ -335,6 +423,15 @@ export default function EmployeesPage() {
         confirmText="Vô hiệu hóa"
         isLoading={isDeleting}
       />
-    </div>
+
+      {/* Mobile FAB */}
+      <button 
+        onClick={handleOpenAdd}
+        className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-amber-500 text-white rounded-[1.25rem] flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.4)] active:scale-90 transition-transform z-[100]"
+      >
+        <UserPlus className="w-6 h-6" />
+      </button>
+
+    </>
   );
 }

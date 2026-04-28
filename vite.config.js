@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:1010',
+        target: 'http://127.0.0.1:1010',
         changeOrigin: true,
         secure: false,
         // Forward cookies (HttpOnly refresh token) correctly through the proxy
