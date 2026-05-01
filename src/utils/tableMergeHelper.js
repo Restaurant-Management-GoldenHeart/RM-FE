@@ -32,7 +32,8 @@ export const isValidMainTable = (table, virtualTables = []) => {
  * @returns {boolean}
  */
 export const isValidChildTable = (table) => {
-  if (table.isVirtual) return false;
+  // Cho phép bàn ảo (bàn chính của nhóm đã gộp) được gộp tiếp
+  // Chỉ chặn bàn con (isMerged) đã bị khoá
   if (table.isMerged) return false;
   if (!['AVAILABLE', 'OCCUPIED'].includes(table.status)) return false;
   return true;

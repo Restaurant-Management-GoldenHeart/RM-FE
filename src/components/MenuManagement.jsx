@@ -42,12 +42,12 @@ const ProductCard = ({ product }) => {
     <div
       onClick={handleAdd}
       className={cn(
-        'group relative bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-500',
-        'hover:shadow-2xl hover:shadow-gold-600/10 hover:border-gold-200 active:scale-95 cursor-pointer select-none',
+        'group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-500',
+        'hover:shadow-xl hover:shadow-gold-600/10 hover:border-gold-200 active:scale-95 cursor-pointer select-none',
         isAnimating && 'ring-2 ring-gold-500 ring-offset-2 scale-95'
       )}
     >
-      <div className="aspect-[5/4] overflow-hidden bg-gray-50 relative">
+      <div className="h-24 overflow-hidden bg-gray-50 relative">
         <img
           src={product.thumbnail || `https://placehold.co/400x320/f9fafb/94a3b8?text=${encodeURIComponent(product.name)}`}
           alt={product.name}
@@ -56,37 +56,37 @@ const ProductCard = ({ product }) => {
         />
         
         {cartQty > 0 && (
-          <div className="absolute top-4 left-4 bg-gold-600 text-white text-[12px] font-black w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-gold-600/40 animate-in zoom-in duration-300">
+          <div className="absolute top-2 left-2 bg-gold-600 text-white text-[10px] font-black w-6 h-6 rounded-lg flex items-center justify-center shadow-lg shadow-gold-600/40 animate-in zoom-in duration-300">
             {cartQty}
           </div>
         )}
-
+ 
         <div className={cn(
-          'absolute top-4 right-4 w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xl',
+          'absolute top-2 right-2 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg',
           isAnimating ? 'bg-gold-500 scale-125 rotate-90' : 'bg-white/90 backdrop-blur-md group-hover:bg-gold-600'
         )}>
           {isAnimating ? (
-            <Check size={20} className="text-white" />
+            <Check size={16} className="text-white" />
           ) : (
-            <Plus size={20} className="text-gold-600 group-hover:text-white" />
+            <Plus size={16} className="text-gold-600 group-hover:text-white" />
           )}
         </div>
       </div>
-
-      <div className="p-5">
-        <div className="flex flex-col gap-1 mb-3">
-          <span className="text-[10px] font-black text-gold-600 uppercase tracking-widest leading-none">
+ 
+      <div className="p-3">
+        <div className="flex flex-col gap-0.5 mb-2">
+          <span className="text-[9px] font-black text-gold-600 uppercase tracking-widest leading-none">
             {product.categoryName || 'Món ăn'}
           </span>
-          <h4 className="font-black text-gray-900 line-clamp-2 min-h-[2.5rem] text-sm tracking-tight leading-tight group-hover:text-gold-700 transition-colors">
+          <h4 className="font-black text-gray-900 line-clamp-1 min-h-[1.25rem] text-xs tracking-tight leading-tight group-hover:text-gold-700 transition-colors">
             {product.name}
           </h4>
         </div>
         
-        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-          <p className="font-black text-gray-900 text-base tabular-nums">{formatVND(product.price)}</p>
-          <div className="flex items-center gap-1 text-[10px] font-extrabold text-gray-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-            Thêm Ngay
+        <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+          <p className="font-black text-gray-900 text-sm tabular-nums">{formatVND(product.price)}</p>
+          <div className="flex items-center gap-1 text-[8px] font-extrabold text-gray-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+            Thêm
           </div>
         </div>
       </div>
@@ -132,39 +132,39 @@ export const MenuGrid = () => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden p-6 gap-6">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gold-50 flex items-center justify-center">
-              <UtensilsCrossed size={20} className="text-gold-600" />
+    <div className="flex flex-col h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-4 gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gold-50 flex items-center justify-center">
+              <UtensilsCrossed size={16} className="text-gold-600" />
             </div>
             <div>
-              <h2 className="font-black text-gray-900 text-lg tracking-tight uppercase">Thực đơn</h2>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Menu Selection</p>
+              <h2 className="font-black text-gray-900 text-base tracking-tight uppercase leading-none">Thực đơn</h2>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Menu</p>
             </div>
           </div>
-
-          <div className="relative group flex-1 max-w-sm">
+ 
+          <div className="relative group flex-1 max-w-xs">
             <Search className={cn(
-              "absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300",
+              "absolute left-3 top-1/2 -translate-y-1/2 transition-colors duration-300",
               debouncedSearch ? "text-gold-600" : "text-gray-300 group-focus-within:text-gold-500"
-            )} size={18} />
+            )} size={14} />
             <input
               type="text"
-              placeholder="Tìm kiếm món ăn..."
+              placeholder="Tìm món..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-gold-300 transition-all outline-none"
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-medium focus:bg-white focus:border-gold-300 transition-all outline-none"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setActiveCategoryId('all')}
             className={cn(
-              'px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border shrink-0',
+              'px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border shrink-0',
               activeCategoryId === 'all' ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
             )}
           >
@@ -175,7 +175,7 @@ export const MenuGrid = () => {
               key={cat.id}
               onClick={() => setActiveCategoryId(cat.id)}
               className={cn(
-                'px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border shrink-0',
+                'px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border shrink-0',
                 activeCategoryId === cat.id ? 'bg-gold-600 border-gold-600 text-white' : 'bg-white border-gray-100 text-gray-400'
               )}
             >
@@ -185,13 +185,13 @@ export const MenuGrid = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1 no-scrollbar pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 no-scrollbar pb-2">
         {menuLoading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonProduct key={i} />)}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+            {Array.from({ length: 12 }).map((_, i) => <SkeletonProduct key={i} />)}
           </div>
         ) : filteredItems.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
             {filteredItems.map(item => <ProductCard key={item.id} product={item} />)}
           </div>
         ) : (

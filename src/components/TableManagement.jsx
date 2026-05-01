@@ -92,12 +92,12 @@ const TableCard = ({ table, isSelected, isMergeMode, mergeSelection, onToggleMer
     <div
       onClick={handleClick}
       className={cn(
-        'relative p-5 rounded-3xl border-2 transition-all duration-300 overflow-hidden select-none group',
+        'relative p-3 rounded-2xl border-2 transition-all duration-300 overflow-hidden select-none group',
         config.card,
         // Highlight khi đang được chọn để xem order
-        isSelected && !isMergeMode && !isDisabled && 'border-gold-500 shadow-xl ring-4 ring-gold-500/5 bg-gold-50/5',
+        isSelected && !isMergeMode && !isDisabled && 'border-gold-500 shadow-lg ring-4 ring-gold-500/5 bg-gold-50/5',
         // Highlight khi ở Merge Mode và đang được tick
-        isMergeMode && isMergeChecked && 'border-blue-500 shadow-lg ring-4 ring-blue-500/10 bg-blue-50/50',
+        isMergeMode && isMergeChecked && 'border-blue-500 shadow-md ring-4 ring-blue-500/10 bg-blue-50/50',
       )}
     >
       {/* Badge: Bàn ảo (Bàn chính của nhóm gộp) */}
@@ -153,7 +153,7 @@ const TableCard = ({ table, isSelected, isMergeMode, mergeSelection, onToggleMer
       <h3 className={cn(
         'font-black tracking-tight transition-colors flex items-center gap-2',
         // Bàn ảo có thể có tên dài hơn → font nhỏ hơn
-        table.isVirtual ? 'text-base' : 'text-xl',
+        table.isVirtual ? 'text-sm' : 'text-lg',
         isMergeChecked ? 'text-blue-600' : isSelected && !isDisabled ? 'text-gold-600' : 'text-gray-900'
       )}>
         {table.tableNumber}
@@ -549,10 +549,10 @@ export const TableList = ({ selectedTableId, onTableSelect }) => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative">
-
+    <div className="flex flex-col h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative">
+ 
       {/* Header */}
-      <div className="p-6 border-b border-gray-50 flex-shrink-0">
+      <div className="p-4 border-b border-gray-50 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gold-50 rounded-xl flex items-center justify-center text-gold-600">

@@ -333,27 +333,27 @@ export const CartPanel = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden outline-none">
+    <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden outline-none">
       {/* ── Header ── */}
-      <div className="p-6 bg-white border-b border-gray-50 shrink-0">
+      <div className="p-4 bg-white border-b border-gray-50 shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1">
               <div className={cn("w-2 h-2 rounded-full",
                 table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse"
                 : table?.status === 'RESERVED' ? "bg-blue-500"
                 : "bg-emerald-500"
               )} />
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em]">
+              <span className="text-[9px] uppercase font-black text-gray-400 tracking-[0.2em]">
                 {table?.status === 'OCCUPIED' ? 'Bàn đang bận'
                 : table?.status === 'RESERVED' ? 'Khách đặt trước'
                 : 'Bàn trống'}
               </span>
             </div>
-            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
+            <h3 className="text-lg font-black text-gray-900 flex items-center gap-2 tracking-tighter">
               Bàn {table?.tableNumber || `#${selectedTableId}`}
               {table?.currentOrderId && (
-                <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-black rounded-xl border border-gray-200">
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-lg border border-gray-200">
                   #{table.currentOrderId}
                 </span>
               )}
@@ -431,7 +431,7 @@ export const CartPanel = () => {
       </div>
 
       {/* ── Footer ── */}
-      <div className="p-6 bg-white border-t border-gray-100 space-y-4 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+      <div className="p-4 bg-white border-t border-gray-100 space-y-3 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
         <div className="space-y-2">
           {draftTotal > 0 && (
             <div className="flex justify-between items-center text-xs">
