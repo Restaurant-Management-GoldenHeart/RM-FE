@@ -301,22 +301,37 @@ export const useTableStore = create((set, get) => ({
         }
       }
 
-      // 4️⃣ Lưu metadata bàn ảo vào LocalStorage (Virtual Table Proxy)
-      const numbers = [mainTable.tableNumber, ...childTables.map(t => t.tableNumber)];
-      const virtualTable = {
-        id: `vt_${Date.now()}`,
-        mainTableId,
-        childTableIds,
-        virtualName: numbers.join(' & '), // VD: "T01 & T02"
-        totalCapacity: childTables.reduce((sum, t) => sum + (t.capacity || 4), mainTable.capacity || 4),
-        originalCapacities: [mainTable.capacity, ...childTables.map(t => t.capacity)],
-        createdAt: new Date().toISOString()
-      };
+      // 4️⃣ Cập nhật metadata bàn ảo vào LocalStorage (Virtual Table Proxy)
+      let currentVts = getVirtualTables();
+      
+      // Tìm xem bàn chính đã là main của nhóm nào chưa
+      let existingVt = currentVts.find(vt => vt.mainTableId === mainTableId);
+      
+      if (existingVt) {
+        // CASE: Gộp thêm vào một nhóm đã tồn tại
+        // Thêm các bàn con mới vào nhóm cũ
+        const newChildIds = [...new Set([...existingVt.childTableIds, ...childTableIds])];
+        const allMemberTables = [mainTable, ...allTables.filter(t => newChildIds.includes(t.id))];
+        
+        existingVt.childTableIds = newChildIds;
+        existingVt.virtualName = allMemberTables.map(t => t.tableNumber).join(' & ');
+        existingVt.totalCapacity = allMemberTables.reduce((sum, t) => sum + (t.capacity || 4), 0);
+      } else {
+        // CASE: Tạo nhóm hoàn toàn mới
+        const numbers = [mainTable.tableNumber, ...childTables.map(t => t.tableNumber)];
+        const virtualTable = {
+          id: `vt_${Date.now()}`,
+          mainTableId,
+          childTableIds,
+          virtualName: numbers.join(' & '),
+          totalCapacity: childTables.reduce((sum, t) => sum + (t.capacity || 4), mainTable.capacity || 4),
+          createdAt: new Date().toISOString()
+        };
+        currentVts.push(virtualTable);
+      }
 
-      const currentVt = getVirtualTables();
-      const updatedVt = [...currentVt, virtualTable];
-      setVirtualTables(updatedVt);
-      set({ virtualTables: updatedVt });
+      setVirtualTables(currentVts);
+      set({ virtualTables: currentVts });
 
       // 5️⃣ Đồng bộ lại UI từ Backend
       const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
