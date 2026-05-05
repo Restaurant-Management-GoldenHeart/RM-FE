@@ -18,6 +18,29 @@ import apiClient from '../../api/apiClient';
 export const paymentApi = {
 
   /**
+   * Xem trước thông tin thanh toán (Preview Checkout).
+   * Dùng để lấy con số chính xác từ BE bao gồm thuế, giảm giá tay,
+   * và đặc biệt là chiết khấu hội viên (Loyalty).
+   *
+   * BE endpoint: GET /api/v1/bills/preview
+   * Query Params:
+   *   orderId: number,
+   *   discount?: number,
+   *   taxRate?: number,
+   *   applyLoyaltyDiscount?: boolean
+   *
+   * @param {{
+   *   orderId: number,
+   *   discount?: number,
+   *   taxRate?: number,
+   *   applyLoyaltyDiscount?: boolean
+   * }} params
+   * @returns {Promise<ApiResponse>}
+   */
+  previewCheckout: (params) =>
+    apiClient.get('/bills/preview', { params }),
+
+  /**
    * Bước 1: Tạo hóa đơn (bill) từ một đơn hàng đã có.
    *
    * ⚠️ NOTE BE: Tất cả các món phải ở trạng thái SERVED trước khi tạo bill.
@@ -50,6 +73,7 @@ export const paymentApi = {
       orderId: payload.orderId,
       taxRate: payload.taxRate ?? 10,
       discount: payload.discount ?? 0,
+      applyLoyaltyDiscount: payload.applyLoyaltyDiscount ?? false, // gửi flag loyalty lên BE
       paymentMethod: payload.paymentMethod ?? 'CASH',
       paidAmount: payload.paidAmount ?? 0,
     }),

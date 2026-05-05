@@ -21,6 +21,15 @@ export const customerApi = {
   },
 
   getCustomerById: (customerId) => apiClient.get(`/customers/${customerId}`),
+  
+  /**
+   * Tra cứu nhanh khách hàng theo từ khóa (Tên/SĐT/Mã).
+   * Dùng cho màn hình POS.
+   * @param {string} keyword - Từ khóa tìm kiếm
+   * @param {number} size - Số lượng kết quả tối đa
+   */
+  lookupCustomers: (keyword, size = 10) =>
+    apiClient.get('/customers/lookup', { params: { keyword, size } }),
 
   /**
    * @param {{
@@ -31,9 +40,21 @@ export const customerApi = {
    */
   createCustomer: (payload) => apiClient.post('/customers', payload),
 
+  /**
+   * Tạo nhanh khách hàng tại màn hình POS.
+   * Chỉ yêu cầu Tên và Số điện thoại.
+   */
+  quickCreateCustomer: (payload) => apiClient.post('/customers/quick-create', payload),
+
   updateCustomer: (customerId, payload) => apiClient.put(`/customers/${customerId}`, payload),
 
   deleteCustomer: (customerId) => apiClient.delete(`/customers/${customerId}`),
+
+  /**
+   * Lấy lịch sử giao dịch điểm thưởng của khách hàng.
+   */
+  getCustomerLoyaltyTransactions: (customerId, page = 0, size = 10) =>
+    apiClient.get(`/customers/${customerId}/loyalty-transactions`, { params: { page, size } }),
 };
 
 export default customerApi;
