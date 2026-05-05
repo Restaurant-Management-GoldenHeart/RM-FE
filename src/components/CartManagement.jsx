@@ -26,6 +26,7 @@ import {
 import toast from 'react-hot-toast';
 import PaymentModal from './pos/PaymentModal';
 import CancelReasonModal from './pos/CancelReasonModal';
+import CustomerSelector from './pos/CustomerSelector';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
@@ -374,6 +375,16 @@ export const CartPanel = () => {
 
       {/* ── List Area ── */}
       <div className="flex-1 overflow-y-auto bg-gray-50/30 p-4 space-y-6 no-scrollbar">
+        {/* Section: Customer Selection (Gắn khách hàng vào đơn) */}
+        {order && (
+          <div className="mb-4">
+            <CustomerSelector 
+              orderId={order.id} 
+              selectedCustomer={order.customer} 
+            />
+          </div>
+        )}
+
         {/* Section: Draft Items */}
         {draftItems.length > 0 && (
           <div className="space-y-3">
