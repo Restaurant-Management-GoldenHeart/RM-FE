@@ -8,8 +8,10 @@
  */
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { useKitchenStore } from '../store/useKitchenStore';
+import { useBranchContext, BRANCH_ALL } from '../context/BranchContext';
+import { useAuthStore } from '../store/useAuthStore';
 import toast from 'react-hot-toast';
-import KitchenItemCard from '../components/Kitchen/KitchenItemCard';
+import KitchenItemCard from '../components/kitchen/KitchenItemCard';
 import {
   ChefHat, RefreshCw, Flame, History,
   CheckCircle2, XCircle, Clock, X, UtensilsCrossed
@@ -246,6 +248,14 @@ const TABS = [
 ];
 
 export default function KitchenPage() {
+  const { selectedBranchId } = useBranchContext();
+  const { user } = useAuthStore();
+
+  // Resolve branchId: context branch (ADMIN selects) or user's own branch
+  const branchId = (selectedBranchId && selectedBranchId !== BRANCH_ALL)
+    ? selectedBranchId
+    : (user?.branchId ?? 1);
+
   const pendingItems        = useKitchenStore(s => s.pendingItems);
   const historyItems        = useKitchenStore(s => s.historyItems);
   const paidOrderIds        = useKitchenStore(s => s.paidOrderIds);
@@ -262,12 +272,15 @@ export default function KitchenPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeTab, setActiveTab]         = useState('pending');
 
+  // Start/stop polling on mount and restart when branch changes
   useEffect(() => {
-    fetchMenuItems();
-    fetchInventoryItems();
-    startPolling();
+    fetchMenuItems(branchId);
+    fetchInventoryItems(branchId);
+    stopPolling();
+    startPolling(branchId);
     return () => stopPolling();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId]);
 
   const columns = useMemo(() => {
     const pending = pendingItems

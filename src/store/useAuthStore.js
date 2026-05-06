@@ -31,18 +31,16 @@ export const useAuthStore = create((set, get) => ({
   login: async (credentials) => {
     set({ loading: true, error: null });
     try {
-      // authApi.login lưu token và trả về full ApiResponse
       const apiResponse = await authApi.login(credentials);
-      // apiResponse = { success, message, data: { accessToken, username, role, ... } }
       const { username, role } = apiResponse.data;
 
-      // Fetch thêm profile chi tiết ngay sau login
+      // Fetch profile chi tiết ngay sau login
       let user = { username, role };
       try {
         const profileRes = await authApi.getMyProfile();
         user = { ...profileRes.data, role };
-        
-        // Luôn lưu branchId vào localStorage để interceptor lấy được
+
+        // Lưu branchId vào localStorage để interceptor lấy được
         if (user.branchId) {
           localStorage.setItem('lastBranchId', user.branchId.toString());
         }
@@ -71,6 +69,8 @@ export const useAuthStore = create((set, get) => ({
     } finally {
       removeToken();
       localStorage.removeItem('lastBranchId');
+      localStorage.removeItem('selected_branch_id');
+      localStorage.removeItem('selected_branch_name');
       set({
         user: null,
         role: null,

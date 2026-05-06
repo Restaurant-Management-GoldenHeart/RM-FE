@@ -5,12 +5,13 @@ import {
   TrendingUp, ArrowUpRight, ArrowDownRight, Filter, Download, MoreVertical, Layers, ArrowRight,
   User, AlertTriangle
 } from 'lucide-react';
-import { Listbox, Menu, Transition } from '@headlessui/react';
+import { Listbox } from '@headlessui/react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useInventory } from '../hooks/useInventory';
 import { inventoryApi } from '../api/inventoryApi';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import PortalFAB from '../components/PortalFAB';
 
 // Components
 import InventoryTable from '../components/inventory/InventoryTable';
@@ -90,6 +91,7 @@ export default function InventoryPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [viewMode, setViewMode] = useState('table');
   const [showFilters, setShowFilters] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
 
   const onEdit = async (item) => {
     if (item && !item.unitId && (item.inventoryId || item.id)) {
@@ -122,12 +124,11 @@ export default function InventoryPage() {
   };
 
   const onFormSubmit = async (data) => {
-    const success = await saveItem(data, selectedItem?.inventoryId || selectedItem?.id);
-    if (success) {
-      setIsFormOpen(false);
-      setIsRestockOpen(false);
-      setSelectedItem(null);
-    }
+    // saveItem will throw on error — let it propagate to InventoryFormModal's catch
+    await saveItem(data, selectedItem?.inventoryId || selectedItem?.id);
+    setIsFormOpen(false);
+    setIsRestockOpen(false);
+    setSelectedItem(null);
   };
 
   const onViewHistory = (item) => {
@@ -283,36 +284,31 @@ export default function InventoryPage() {
 
       {/* Floating Action Button (Mobile Only) */}
       {isMobile && canEdit && (
-        <div className="fixed bottom-20 right-4 z-50">
-          <Menu as="div" className="relative">
-            <Menu.Button aria-label="Open Actions" className="w-14 h-14 bg-amber-500 text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.5)] active:scale-95 transition-transform">
-              <Plus size={28} strokeWidth={2.5} aria-hidden="true" />
-            </Menu.Button>
-            <Transition
-              as="div"
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 scale-90 translate-y-2"
-              enterTo="opacity-100 scale-100 translate-y-0"
-              leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 scale-100 translate-y-0"
-              leaveTo="opacity-0 scale-90 translate-y-2"
-              className="absolute bottom-16 right-0 mb-4 w-48"
-            >
-              <Menu.Items className="flex flex-col gap-2 items-end outline-none">
-                <Menu.Item>
-                  <button onClick={() => setIsFormOpen(true)} className="flex items-center justify-between w-full gap-3 px-4 py-3 bg-white rounded-2xl shadow-xl border border-gray-100 text-xs font-black uppercase tracking-widest">
-                    Thêm NVL mới <Package size={14} />
-                  </button>
-                </Menu.Item>
-                <Menu.Item>
-                  <button onClick={() => setLowStockOnly(true)} className="flex items-center justify-between w-full gap-3 px-4 py-3 bg-orange-500 text-white rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest">
-                    Nhập hàng ngay <TrendingUp size={14} />
-                  </button>
-                </Menu.Item>
-              </Menu.Items>
-            </Transition>
-          </Menu>
-        </div>
+        <PortalFAB>
+          {fabOpen && (
+            <>
+              <button
+                onClick={() => { setIsFormOpen(true); setFabOpen(false); }}
+                className="flex items-center justify-between w-48 px-4 py-3 bg-white rounded-2xl shadow-xl border border-gray-100 text-xs font-black uppercase tracking-widest text-gray-900"
+              >
+                Thêm NVL mới <Package size={14} />
+              </button>
+              <button
+                onClick={() => { setLowStockOnly(true); setFabOpen(false); }}
+                className="flex items-center justify-between w-48 px-4 py-3 bg-amber-500 text-white rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest"
+              >
+                Nhập hàng ngay <TrendingUp size={14} />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setFabOpen((v) => !v)}
+            aria-label="Mở menu hành động"
+            className="w-14 h-14 bg-amber-500 text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.5)]"
+          >
+            <Plus size={28} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </PortalFAB>
       )}
 
 

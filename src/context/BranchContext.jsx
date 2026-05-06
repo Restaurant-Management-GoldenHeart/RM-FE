@@ -1,5 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
+import { employeeApi } from '../api/employeeApi';
+import { toast } from 'react-hot-toast';
 
 const BranchContext = createContext();
 
@@ -9,48 +11,87 @@ export const BranchProvider = ({ children }) => {
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [selectedBranchName, setSelectedBranchName] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
-  const { role } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const { role, user, setUser } = useAuthStore();
 
-  // Khởi tạo từ localStorage khi mount
   useEffect(() => {
-    const savedId = localStorage.getItem('selected_branch_id');
-    const savedName = localStorage.getItem('selected_branch_name');
-    
+    if (!role || !user) return;
+
+    // Chỉ ADMIN mới được phép dùng chi nhánh từ localStorage (để lưu trạng thái đang xem)
     if (role === 'ADMIN') {
-      // ADMIN: mặc định 'all' nếu chưa có
-      setSelectedBranchId(savedId || BRANCH_ALL);
-      setSelectedBranchName(savedName || '🏢 Tất cả chi nhánh');
-    } else {
-      // Role khác: đọc từ localStorage nếu đã chọn hôm trước
+      const savedId = localStorage.getItem('selected_branch_id');
+      const savedName = localStorage.getItem('selected_branch_name');
+
       if (savedId) {
-        setSelectedBranchId(savedId === BRANCH_ALL ? BRANCH_ALL : parseInt(savedId, 10));
+        setSelectedBranchId(parseInt(savedId, 10));
         setSelectedBranchName(savedName || '');
+        setIsInitialized(true);
+        return;
       }
     }
-    setIsInitialized(true);
-  }, [role]);
 
-  const changeBranch = (branchId, branchName) => {
-    setSelectedBranchId(branchId);
-    setSelectedBranchName(branchName);
+    // Với các Role khác (KITCHEN, STAFF, MANAGER) hoặc ADMIN chưa có cache:
+    // Luôn bắt buộc dùng chi nhánh được gán trong Profile
+    const ownBranchId = user.branchId ? parseInt(user.branchId, 10) : null;
+    const ownBranchName = user.branchName || '';
     
-    if (branchId) {
-      localStorage.setItem('selected_branch_id', branchId.toString());
-      localStorage.setItem('selected_branch_name', branchName || '');
+    setSelectedBranchId(ownBranchId);
+    setSelectedBranchName(ownBranchName);
+    
+    // Nếu là ADMIN thì mới lưu vào cache cho lần sau
+    if (role === 'ADMIN' && ownBranchId) {
+      localStorage.setItem('selected_branch_id', ownBranchId.toString());
+      localStorage.setItem('selected_branch_name', ownBranchName);
     } else {
+      // Xóa cache cũ nếu role hiện tại không phải ADMIN để tránh xung đột session
       localStorage.removeItem('selected_branch_id');
       localStorage.removeItem('selected_branch_name');
+    }
+
+    setIsInitialized(true);
+  }, [role, user]);
+
+  const changeBranch = async (branchId, branchName) => {
+    // Chỉ ADMIN được phép đổi chi nhánh
+    if (role !== 'ADMIN' || !user?.id) return;
+
+    try {
+      setLoading(true);
+      
+      // Gọi API updateEmployee có sẵn trên backend (PUT /api/v1/employees/{id})
+      // Backend hiện tại hỗ trợ branchId trong payload của API này
+      await employeeApi.updateEmployee(user.id, { branchId: Number(branchId) });
+      
+      // Cập nhật local state
+      setSelectedBranchId(Number(branchId));
+      setSelectedBranchName(branchName);
+      
+      // Đồng bộ vào localStorage
+      localStorage.setItem('selected_branch_id', branchId.toString());
+      localStorage.setItem('selected_branch_name', branchName || '');
+      
+      // Cập nhật useAuthStore để đồng bộ thông tin user
+      setUser({
+        ...user,
+        branchId: Number(branchId),
+        branchName: branchName
+      });
+      
+      toast.success(`Đã chuyển sang: ${branchName}`);
+    } catch (error) {
+      console.error('Failed to switch branch:', error);
+      toast.error('Không thể lưu chi nhánh trên hệ thống. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const buildApiParams = () => {
-    if (!selectedBranchId || selectedBranchId === BRANCH_ALL) {
-      return {}; // không truyền branchId
+    if (!selectedBranchId) {
+      return {};
     }
     return { branchId: selectedBranchId };
   };
-
-  const isAllBranches = selectedBranchId === BRANCH_ALL || !selectedBranchId;
 
   return (
     <BranchContext.Provider
@@ -59,8 +100,9 @@ export const BranchProvider = ({ children }) => {
         selectedBranchName,
         changeBranch,
         buildApiParams,
-        isAllBranches,
-        isInitialized
+        isInitialized,
+        loading,
+        canChangeBranch: role === 'ADMIN',
       }}
     >
       {children}

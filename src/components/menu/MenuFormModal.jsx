@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Save, UtensilsCrossed, 
-  AlertTriangle, Flame, Plus, 
+import {
+  X, Save, UtensilsCrossed,
+  AlertTriangle, Flame, Plus,
   Trash2, ChevronDown, Loader2,
-  DollarSign 
+  DollarSign
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -18,6 +18,11 @@ function RecipesEditor({ recipes, onChange, ingredients = [] }) {
     const next = recipes.map((r, idx) => idx === i ? { ...r, [field]: val } : r);
     onChange(next);
   };
+
+  // Deduplicate by id — API có thể trả về cùng nguyên liệu từ nhiều chi nhánh
+  const uniqueIngredients = ingredients.filter(
+    (ing, idx, arr) => arr.findIndex(x => String(x.id) === String(ing.id)) === idx
+  );
 
   return (
     <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 shadow-inner">
@@ -54,8 +59,8 @@ function RecipesEditor({ recipes, onChange, ingredients = [] }) {
                   className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-xs outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Chọn nguyên liệu...</option>
-                  {ingredients.map(ing => (
-                    <option key={ing.id} value={ing.id}>
+                  {uniqueIngredients.map((ing, idx) => (
+                    <option key={`${ing.id}-${idx}`} value={ing.id}>
                       {ing.name} ({ing.unitSymbol || ing.unitName || 'Đơn vị'})
                     </option>
                   ))}
@@ -90,14 +95,14 @@ function RecipesEditor({ recipes, onChange, ingredients = [] }) {
 /**
  * MenuFormModal - Modal container and main form
  */
-export function MenuFormModal({ 
-  item, 
-  categories = [], 
-  branches = [], 
-  ingredients = [], 
-  onSave, 
+export function MenuFormModal({
+  item,
+  categories = [],
+  branches = [],
+  ingredients = [],
+  onSave,
   onClose,
-  saving 
+  saving
 }) {
   const { user } = useAuthStore();
   const isEdit = !!item;
@@ -124,9 +129,9 @@ export function MenuFormModal({
         branchId: item.branchId ?? '',
         categoryId: item.categoryId ?? '',
       });
-      setRecipes(item.recipes?.map(r => ({ 
-        ingredientId: r.ingredientId, 
-        quantity: r.quantity 
+      setRecipes(item.recipes?.map(r => ({
+        ingredientId: r.ingredientId,
+        quantity: r.quantity
       })) || []);
     } else {
       // Auto-select branch if possible
@@ -140,15 +145,15 @@ export function MenuFormModal({
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Tên món không được để trống';
-    
+
     const price = Number(form.price);
     if (!form.price || isNaN(price) || price <= 0) e.price = 'Giá phải lớn hơn 0';
-    
+
     if (!form.branchId) e.branchId = 'Vui lòng chọn chi nhánh';
     if (!form.categoryId) e.categoryId = 'Vui lòng chọn danh mục';
 
     if (recipes.length === 0 || recipes.some(r => !r.ingredientId || !r.quantity || Number(r.quantity) <= 0)) {
-       e.recipes = 'Công thức món ăn không được để trống hoặc thiếu định lượng';
+      e.recipes = 'Công thức món ăn không được để trống hoặc thiếu định lượng';
     }
 
     setErrors(e);
@@ -159,9 +164,9 @@ export function MenuFormModal({
     e.preventDefault();
     setFormError(null);
     setFieldErrors({});
-    
+
     if (!validate()) return;
-    
+
     try {
       // Clean recipes
       const cleanRecipes = recipes
@@ -191,21 +196,21 @@ export function MenuFormModal({
   const inputCls = (field) => `
     w-full px-4 py-3 rounded-xl bg-white border text-gray-900 text-sm placeholder-gray-400 outline-none transition-all
     ${(errors[field] || fieldErrors[field])
-      ? 'border-red-500 focus:ring-4 focus:ring-red-500/5' 
+      ? 'border-red-500 focus:ring-4 focus:ring-red-500/5'
       : 'border-gray-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5'}
   `;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm animate-fade-in" 
-        onClick={onClose} 
+      <div
+        className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
       />
-      
+
       {/* Modal Content */}
       <div className="relative z-10 w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100">
           <div className="flex items-center gap-4">
@@ -221,8 +226,8 @@ export function MenuFormModal({
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-50 text-gray-400 hover:text-gray-900 transition-all active:scale-95"
           >
             <X className="w-6 h-6" />
@@ -237,90 +242,90 @@ export function MenuFormModal({
               <p className="text-xs font-bold leading-relaxed uppercase tracking-tight">{formError}</p>
             </div>
           )}
-          
+
           <form id="menu-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Name */}
-                <div className="space-y-2 md:col-span-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Tên món ăn *</label>
-                    <input 
-                        className={inputCls('name')} 
-                        value={form.name}
-                        onChange={(e) => setForm({...form, name: e.target.value})} 
-                        placeholder="Ví dụ: Phở Bò Tái Nạm..." 
-                    />
-                    {(errors.name || fieldErrors.name) && (
-                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
-                        <AlertTriangle size={12}/> {fieldErrors.name || errors.name}
-                      </p>
-                    )}
-                </div>
+              {/* Name */}
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Tên món ăn *</label>
+                <input
+                  className={inputCls('name')}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Ví dụ: Phở Bò Tái Nạm..."
+                />
+                {(errors.name || fieldErrors.name) && (
+                  <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                    <AlertTriangle size={12} /> {fieldErrors.name || errors.name}
+                  </p>
+                )}
+              </div>
 
-                {/* Description */}
-                <div className="space-y-2 md:col-span-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Mô tả tóm tắt</label>
-                    <textarea 
-                        className={inputCls('description')} 
-                        rows={2} 
-                        value={form.description}
-                        onChange={(e) => setForm({...form, description: e.target.value})} 
-                        placeholder="Mô tả ngắn về hương vị món ăn..." 
-                    />
-                </div>
+              {/* Description */}
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Mô tả tóm tắt</label>
+                <textarea
+                  className={inputCls('description')}
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Mô tả ngắn về hương vị món ăn..."
+                />
+              </div>
 
-                {/* Price & Status */}
-                <div className="space-y-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Giá bán (₫) *</label>
-                    <div className="relative">
-                        <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-                        <input 
-                            className={`${inputCls('price')} pl-10 font-bold tabular-nums`} 
-                            type="number" min="0" step="1000"
-                            value={form.price} onChange={(e) => setForm({...form, price: e.target.value})} 
-                            placeholder="0" 
-                        />
-                    </div>
-                    {fieldErrors.price && (
-                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1 mt-1">
-                        <AlertTriangle size={12}/> {fieldErrors.price}
-                      </p>
-                    )}
+              {/* Price & Status */}
+              <div className="space-y-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Giá bán (₫) *</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                  <input
+                    className={`${inputCls('price')} pl-10 font-bold tabular-nums`}
+                    type="number" min="0" step="1000"
+                    value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
+                    placeholder="0"
+                  />
                 </div>
+                {fieldErrors.price && (
+                  <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1 mt-1">
+                    <AlertTriangle size={12} /> {fieldErrors.price}
+                  </p>
+                )}
+              </div>
 
-                <div className="space-y-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Trạng thái bán</label>
-                    <select className={inputCls('status')} value={form.status} onChange={(e) => setForm({...form, status: e.target.value})}>
-                        <option value="AVAILABLE">✨ Đang kinh doanh</option>
-                        <option value="UNAVAILABLE">🛑 Tạm ngưng bán</option>
-                    </select>
-                </div>
+              <div className="space-y-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Trạng thái bán</label>
+                <select className={inputCls('status')} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <option value="AVAILABLE">✨ Đang kinh doanh</option>
+                  <option value="UNAVAILABLE">🛑 Tạm ngưng bán</option>
+                </select>
+              </div>
 
-                {/* Branch & Category */}
-                <div className="space-y-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Chi nhánh *</label>
-                    <select className={inputCls('branchId')} value={form.branchId} onChange={(e) => setForm({...form, branchId: e.target.value})}>
-                        <option value="">-- Chọn chi nhánh --</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
-                    {(errors.branchId || fieldErrors.branchId) && (
-                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
-                        <AlertTriangle size={12}/> {fieldErrors.branchId || errors.branchId}
-                      </p>
-                    )}
-                </div>
+              {/* Branch & Category */}
+              <div className="space-y-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Chi nhánh *</label>
+                <select className={inputCls('branchId')} value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
+                  <option value="">-- Chọn chi nhánh --</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+                {(errors.branchId || fieldErrors.branchId) && (
+                  <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                    <AlertTriangle size={12} /> {fieldErrors.branchId || errors.branchId}
+                  </p>
+                )}
+              </div>
 
-                <div className="space-y-2">
-                    <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Danh mục *</label>
-                    <select className={inputCls('categoryId')} value={form.categoryId} onChange={(e) => setForm({...form, categoryId: e.target.value})}>
-                        <option value="">-- Chọn danh mục --</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {(errors.categoryId || fieldErrors.categoryId) && (
-                      <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
-                        <AlertTriangle size={12}/> {fieldErrors.categoryId || errors.categoryId}
-                      </p>
-                    )}
-                </div>
+              <div className="space-y-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Danh mục *</label>
+                <select className={inputCls('categoryId')} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+                  <option value="">-- Chọn danh mục --</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {(errors.categoryId || fieldErrors.categoryId) && (
+                  <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">
+                    <AlertTriangle size={12} /> {fieldErrors.categoryId || errors.categoryId}
+                  </p>
+                )}
+              </div>
             </div>
 
             <RecipesEditor recipes={recipes} onChange={setRecipes} ingredients={ingredients} />
@@ -335,22 +340,22 @@ export function MenuFormModal({
 
         {/* Footer */}
         <div className="p-8 border-t border-gray-100 flex items-center gap-4">
-            <button
-                type="submit"
-                form="menu-form"
-                disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 h-14 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm uppercase tracking-widest transition-all disabled:opacity-60 shadow-lg shadow-amber-900/10 active:scale-95 group"
-            >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />}
-                <span>{saving ? 'Đang lưu dữ liệu...' : isEdit ? 'Lưu thay đổi' : 'Tạo món ăn'}</span>
-            </button>
-            <button
-                type="button"
-                onClick={onClose}
-                className="px-8 h-14 rounded-2xl bg-gray-50 border border-transparent hover:border-gray-200 text-gray-500 text-xs font-bold uppercase tracking-widest transition-all active:scale-95"
-            >
-                Đóng
-            </button>
+          <button
+            type="submit"
+            form="menu-form"
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 h-14 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm uppercase tracking-widest transition-all disabled:opacity-60 shadow-lg shadow-amber-900/10 active:scale-95 group"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+            <span>{saving ? 'Đang lưu dữ liệu...' : isEdit ? 'Lưu thay đổi' : 'Tạo món ăn'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 h-14 rounded-2xl bg-gray-50 border border-transparent hover:border-gray-200 text-gray-500 text-xs font-bold uppercase tracking-widest transition-all active:scale-95"
+          >
+            Đóng
+          </button>
         </div>
       </div>
     </div>,

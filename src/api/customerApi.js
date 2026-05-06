@@ -14,9 +14,10 @@ export const customerApi = {
   /**
    * @param {{ keyword?: string, page?: number, size?: number }} params
    */
-  getCustomers: ({ keyword = '', page = 0, size = 10 } = {}) => {
+  getCustomers: ({ keyword = '', page = 0, size = 10, branchId } = {}) => {
     const params = { page, size };
     if (keyword?.trim()) params.keyword = keyword.trim();
+    if (branchId) params.branchId = branchId;
     return apiClient.get('/customers', { params });
   },
 

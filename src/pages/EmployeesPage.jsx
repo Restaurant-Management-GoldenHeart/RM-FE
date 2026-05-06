@@ -18,6 +18,7 @@ import {
 import { useEmployees } from '../hooks/useEmployees';
 import EmployeeFormModal from '../components/employees/EmployeeFormModal';
 import PremiumConfirmModal from '../components/PremiumConfirmModal';
+import PortalFAB from '../components/PortalFAB';
 
 /**
  * EmployeesPage.jsx — Quản lý nhân viên với theme "Simple White & Gold".
@@ -68,11 +69,10 @@ export default function EmployeesPage() {
   };
 
   const onFormSubmit = async (formData) => {
-    const success = await saveEmployee(formData, employeeToEdit?.id);
-    if (success) {
-      setIsFormOpen(false);
-      setEmployeeToEdit(null);
-    }
+    // Let error propagate to EmployeeFormModal's catch block
+    await saveEmployee(formData, employeeToEdit?.id);
+    setIsFormOpen(false);
+    setEmployeeToEdit(null);
   };
 
   const onDeleteConfirm = async () => {
@@ -425,12 +425,15 @@ export default function EmployeesPage() {
       />
 
       {/* Mobile FAB */}
-      <button 
-        onClick={handleOpenAdd}
-        className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-amber-500 text-white rounded-[1.25rem] flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.4)] active:scale-90 transition-transform z-[100]"
-      >
-        <UserPlus className="w-6 h-6" />
-      </button>
+      <PortalFAB>
+        <button
+          onClick={handleOpenAdd}
+          aria-label="Thêm nhân viên"
+          className="md:hidden w-14 h-14 bg-amber-500 text-white rounded-[1.25rem] flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.4)]"
+        >
+          <UserPlus className="w-6 h-6" />
+        </button>
+      </PortalFAB>
 
     </>
   );

@@ -11,7 +11,7 @@ import { DeleteConfirmModal } from '../components/menu/DeleteConfirmModal';
 import { CategoryFormModal } from '../components/menu/CategoryFormModal';
 import MenuMobileList from '../components/menu/MenuMobileList';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { Menu as HeadlessMenu, Transition } from '@headlessui/react';
+import PortalFAB from '../components/PortalFAB';
 import { Plus, FolderPlus, UtensilsCrossed } from 'lucide-react';
 
 /**
@@ -52,6 +52,7 @@ export default function MenuPage() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [fabOpen, setFabOpen] = useState(false);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -150,45 +151,31 @@ export default function MenuPage() {
 
       {/* Floating Action Button (Mobile Only) */}
       {isMobile && isAdmin && (
-        <div className="fixed bottom-20 right-4 z-50">
-          <HeadlessMenu as="div" className="relative">
-            <HeadlessMenu.Button 
-              className="w-14 h-14 bg-amber-500 text-white rounded-[1.25rem] flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.4)] active:scale-90 transition-transform"
-              aria-label="Thêm mới"
-            >
-              <Plus size={28} strokeWidth={2.5} aria-hidden="true" />
-            </HeadlessMenu.Button>
-            <Transition
-              as="div"
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 scale-90 translate-y-2"
-              enterTo="opacity-100 scale-100 translate-y-0"
-              leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 scale-100 translate-y-0"
-              leaveTo="opacity-0 scale-90 translate-y-2"
-              className="absolute bottom-16 right-0 mb-4 w-52"
-            >
-              <HeadlessMenu.Items className="flex flex-col gap-2 items-end outline-none">
-                <HeadlessMenu.Item>
-                  <button 
-                    onClick={handleOpenAdd} 
-                    className="flex items-center justify-between w-full px-4 py-3 bg-amber-500 text-white rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                  >
-                    Thêm món mới <UtensilsCrossed size={14} aria-hidden="true" />
-                  </button>
-                </HeadlessMenu.Item>
-                <HeadlessMenu.Item>
-                  <button 
-                    onClick={handleOpenAddCategory} 
-                    className="flex items-center justify-between w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-xl text-gray-900 text-xs font-black uppercase tracking-widest outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                  >
-                    Thêm danh mục <FolderPlus size={14} aria-hidden="true" />
-                  </button>
-                </HeadlessMenu.Item>
-              </HeadlessMenu.Items>
-            </Transition>
-          </HeadlessMenu>
-        </div>
+        <PortalFAB>
+          {fabOpen && (
+            <>
+              <button
+                onClick={() => { handleOpenAdd(); setFabOpen(false); }}
+                className="flex items-center justify-between w-52 px-4 py-3 bg-amber-500 text-white rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest"
+              >
+                Thêm món mới <UtensilsCrossed size={14} aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => { handleOpenAddCategory(); setFabOpen(false); }}
+                className="flex items-center justify-between w-52 px-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-xl text-gray-900 text-xs font-black uppercase tracking-widest"
+              >
+                Thêm danh mục <FolderPlus size={14} aria-hidden="true" />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setFabOpen((v) => !v)}
+            aria-label="Thêm mới"
+            className="w-14 h-14 bg-amber-500 text-white rounded-[1.25rem] flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.4)]"
+          >
+            <Plus size={28} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </PortalFAB>
       )}
 
       {/* 4. Modals */}

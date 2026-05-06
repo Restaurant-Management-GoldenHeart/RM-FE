@@ -2,13 +2,21 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { customerApi } from '../api/customerApi';
+import { useBranchContext, BRANCH_ALL } from '../context/BranchContext';
 
 /**
  * useCustomers - Custom hook for Customer Management
  * @description Centralizes analytical data, pagination, search, and CRUD logic.
+ * Branch-aware: re-fetches automatically when selected branch changes.
  */
 export function useCustomers() {
   const queryClient = useQueryClient();
+  const { selectedBranchId, isInitialized } = useBranchContext();
+
+  // Resolve actual branchId to send to API (null = all branches)
+  const branchId = (selectedBranchId && selectedBranchId !== BRANCH_ALL)
+    ? selectedBranchId
+    : undefined;
 
   // --- Search & Pagination State ---
   const [searchInput, setSearchInput] = useState('');
@@ -25,16 +33,20 @@ export function useCustomers() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // --- Queries ---
+  // Reset page when branch changes
+  useEffect(() => {
+    setPage(0);
+  }, [branchId]);
 
+  // --- Queries ---
   const customersQuery = useQuery({
-    queryKey: ['customers', keyword, page],
-    queryFn: () => customerApi.getCustomers({ keyword, page, size: pageSize }),
+    queryKey: ['customers', keyword, page, branchId],
+    queryFn: () => customerApi.getCustomers({ keyword, page, size: pageSize, branchId }),
     placeholderData: keepPreviousData,
+    enabled: isInitialized, // wait until branch is loaded from localStorage
   });
 
   // --- Mutations ---
-
   const createMutation = useMutation({
     mutationFn: customerApi.createCustomer,
     onSuccess: () => {
@@ -55,7 +67,7 @@ export function useCustomers() {
 
   const deleteMutation = useMutation({
     mutationFn: customerApi.deleteCustomer,
-    onSuccess: (data, deletedId) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success('Đã xóa hồ sơ khách hàng!');
     },
@@ -82,7 +94,7 @@ export function useCustomers() {
 
     setPage,
     setSearchInput,
-    
+
     handleSave: async (payload, customerId) => {
       if (customerId) {
         return updateMutation.mutateAsync({ id: customerId, data: payload });
@@ -90,7 +102,7 @@ export function useCustomers() {
         return createMutation.mutateAsync(payload);
       }
     },
-    
+
     handleDelete: async (customer) => {
       if (window.confirm(`Bạn có chắc muốn xóa hồ sơ khách hàng "${customer.name}"?`)) {
         return deleteMutation.mutateAsync(customer.id);
