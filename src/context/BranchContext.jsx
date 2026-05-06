@@ -17,24 +17,35 @@ export const BranchProvider = ({ children }) => {
   useEffect(() => {
     if (!role || !user) return;
 
-    // Đọc từ localStorage trước
-    const savedId = localStorage.getItem('selected_branch_id');
-    const savedName = localStorage.getItem('selected_branch_name');
+    // Chỉ ADMIN mới được phép dùng chi nhánh từ localStorage (để lưu trạng thái đang xem)
+    if (role === 'ADMIN') {
+      const savedId = localStorage.getItem('selected_branch_id');
+      const savedName = localStorage.getItem('selected_branch_name');
 
-    if (savedId) {
-      setSelectedBranchId(parseInt(savedId, 10));
-      setSelectedBranchName(savedName || '');
-    } else {
-      // Nếu chưa có trong localStorage, dùng chi nhánh từ profile (áp dụng cho cả Admin và các role khác)
-      const ownBranchId = user.branchId ? parseInt(user.branchId, 10) : null;
-      const ownBranchName = user.branchName || '';
-      setSelectedBranchId(ownBranchId);
-      setSelectedBranchName(ownBranchName);
-      
-      if (ownBranchId) {
-        localStorage.setItem('selected_branch_id', ownBranchId.toString());
-        localStorage.setItem('selected_branch_name', ownBranchName);
+      if (savedId) {
+        setSelectedBranchId(parseInt(savedId, 10));
+        setSelectedBranchName(savedName || '');
+        setIsInitialized(true);
+        return;
       }
+    }
+
+    // Với các Role khác (KITCHEN, STAFF, MANAGER) hoặc ADMIN chưa có cache:
+    // Luôn bắt buộc dùng chi nhánh được gán trong Profile
+    const ownBranchId = user.branchId ? parseInt(user.branchId, 10) : null;
+    const ownBranchName = user.branchName || '';
+    
+    setSelectedBranchId(ownBranchId);
+    setSelectedBranchName(ownBranchName);
+    
+    // Nếu là ADMIN thì mới lưu vào cache cho lần sau
+    if (role === 'ADMIN' && ownBranchId) {
+      localStorage.setItem('selected_branch_id', ownBranchId.toString());
+      localStorage.setItem('selected_branch_name', ownBranchName);
+    } else {
+      // Xóa cache cũ nếu role hiện tại không phải ADMIN để tránh xung đột session
+      localStorage.removeItem('selected_branch_id');
+      localStorage.removeItem('selected_branch_name');
     }
 
     setIsInitialized(true);
