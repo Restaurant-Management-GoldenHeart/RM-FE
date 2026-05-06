@@ -65,11 +65,12 @@ export const employeeApi = {
    *
    * Yêu cầu Role: ADMIN | MANAGER
    */
-  getEmployees: ({ keyword = '', page = 0, size = 10 } = {}) => {
+  getEmployees: ({ keyword = '', page = 0, size = 10, branchId } = {}) => {
     const params = cleanParams({
       keyword: keyword?.trim(),
       page,
       size,
+      branchId: branchId || undefined,
     });
     return apiClient.get('/employees', { params });
   },

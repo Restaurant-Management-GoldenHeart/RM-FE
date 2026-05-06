@@ -3,19 +3,34 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'react-hot-toast';
 import { inventoryApi } from '../api/inventoryApi';
 import { employeeApi } from '../api/employeeApi';
-import { useAuthStore } from '../store/useAuthStore';
 import { extractErrorMessage } from '../utils/errorHelper';
+import { useBranchContext, BRANCH_ALL } from '../context/BranchContext';
 
 /**
  * useInventory - Hook quản lý kho hàng chuẩn Production.
- * Phân tách Logic khỏi UI, xử lý caching và đồng bộ hóa chi nhánh.
+ * Branch-aware: đồng bộ filterBranchId với BranchContext.
+ * Khi ADMIN đổi chi nhánh trên topbar → kho tự load lại.
  */
 export const useInventory = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { selectedBranchId, isInitialized } = useBranchContext();
+
+  // Resolve branchId from context (null = all)
+  const contextBranchId = (selectedBranchId && selectedBranchId !== BRANCH_ALL)
+    ? selectedBranchId
+    : undefined;
+
+  // filterBranchId mirrors the context value
+  const [filterBranchId, setFilterBranchId] = useState(contextBranchId);
+
+  // Keep filterBranchId in sync with context whenever it changes
+  useEffect(() => {
+    setFilterBranchId(contextBranchId);
+    setPage(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBranchId]);
 
   // --- State: Filter & Pagination ---
-  const [filterBranchId, setFilterBranchId] = useState(user?.branchId || null);
   const [keyword, setKeyword] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [page, setPage] = useState(0);
@@ -30,15 +45,8 @@ export const useInventory = () => {
       const res = await employeeApi.getBranches();
       return res.data || [];
     },
-    staleTime: 300000, // 5 phút
+    staleTime: 300000,
   });
-
-  // Tự động chọn chi nhánh đầu tiên cho Admin nếu chưa chọn
-  useEffect(() => {
-    if (user?.role === 'ADMIN' && !filterBranchId && branches.length > 0) {
-      setFilterBranchId(branches[0].id);
-    }
-  }, [branches, filterBranchId, user?.role]);
 
   // 2. Danh sách nguyên liệu trong kho
   const {
@@ -49,15 +57,16 @@ export const useInventory = () => {
     refetch
   } = useQuery({
     queryKey: ['inventoryItems', filterBranchId, keyword, lowStockOnly, page],
-    queryFn: () => inventoryApi.getInventoryItems({ 
-      keyword, 
-      branchId: filterBranchId, 
-      lowStockOnly, 
-      page, 
-      size 
+    queryFn: () => inventoryApi.getInventoryItems({
+      keyword,
+      branchId: filterBranchId,
+      lowStockOnly,
+      page,
+      size
     }),
     placeholderData: keepPreviousData,
     retry: 1,
+    enabled: isInitialized,
   });
 
   const items = itemsRes?.data?.content || [];
@@ -71,7 +80,7 @@ export const useInventory = () => {
   const { data: summaryRes } = useQuery({
     queryKey: ['inventorySummary', filterBranchId],
     queryFn: () => inventoryApi.getInventorySummary({ branchId: filterBranchId }),
-    enabled: !!filterBranchId || user?.role === 'ADMIN',
+    enabled: isInitialized,
   });
   const summary = summaryRes?.data || { totalItems: 0, totalInventoryValue: 0, lowStockCount: 0 };
 
@@ -79,7 +88,7 @@ export const useInventory = () => {
   const { data: alertsRes } = useQuery({
     queryKey: ['lowStockAlerts', filterBranchId],
     queryFn: () => inventoryApi.getLowStockAlerts({ branchId: filterBranchId }),
-    enabled: !!filterBranchId || user?.role === 'ADMIN',
+    enabled: isInitialized,
   });
   const alerts = alertsRes?.data || [];
 
@@ -90,22 +99,21 @@ export const useInventory = () => {
     staleTime: 300000,
   });
   const units = unitsRes?.data || [];
-  
-  // 6. Báo cáo di chuyển kho hôm nay (để lấy giá trị nhập hàng)
-  const today = new Date().toLocaleDateString('sv-SE'); // sv-SE gives YYYY-MM-DD
+
+  // 6. Báo cáo di chuyển kho hôm nay
+  const today = new Date().toLocaleDateString('sv-SE');
   const { data: todayMovementRes } = useQuery({
     queryKey: ['inventoryMovementReport', filterBranchId, today],
     queryFn: () => inventoryApi.getMovementReport(filterBranchId, today, today),
-    enabled: !!filterBranchId || user?.role === 'ADMIN',
+    enabled: isInitialized,
   });
   const todayMovement = todayMovementRes?.data || { totalReceiptValue: 0 };
 
   // --- Mutations ---
 
-  // Lưu (Thêm mới/Cập nhật)
   const saveMutation = useMutation({
-    mutationFn: ({ id, data }) => id 
-      ? inventoryApi.updateInventoryItem({ id, data }) 
+    mutationFn: ({ id, data }) => id
+      ? inventoryApi.updateInventoryItem({ id, data })
       : inventoryApi.createInventoryItem(data),
     onSuccess: (_, variables) => {
       toast.success(variables.id ? 'Cập nhật kho thành công' : 'Thêm nguyên liệu thành công');
@@ -114,12 +122,9 @@ export const useInventory = () => {
       queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
       queryClient.invalidateQueries({ queryKey: ['inventoryMovementReport'] });
     },
-    onError: (err) => {
-      toast.error(extractErrorMessage(err, 'Thao tác kho thất bại'));
-    }
+    // onError intentionally omitted — toast is shown by InventoryFormModal's catch block
   });
 
-  // Xóa
   const deleteMutation = useMutation({
     mutationFn: (id) => inventoryApi.deleteInventoryItem(id),
     onSuccess: () => {
@@ -143,17 +148,12 @@ export const useInventory = () => {
     setPage(0);
   };
 
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-  };
+  const handlePageChange = (newPage) => setPage(newPage);
 
   const saveItem = async (data, id) => {
-    try {
-      await saveMutation.mutateAsync({ id, data });
-      return true;
-    } catch (e) {
-      return false;
-    }
+    // Let the error propagate so InventoryFormModal can handle field-level errors
+    await saveMutation.mutateAsync({ id, data });
+    return true;
   };
 
   const deleteItem = async (id) => {

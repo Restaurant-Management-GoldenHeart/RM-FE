@@ -171,31 +171,45 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
-      {/* Toast notifications — clean white & gold style */}
+      {/* Toast notifications — responsive Vietnamese style */}
       <Toaster
         position="top-right"
-        gutter={10}
+        gutter={8}
+        containerStyle={{
+          // Mobile: bottom-center với khoảng cách với thanh nav
+          top: 'env(safe-area-inset-top, 16px)',
+        }}
         toastOptions={{
-          duration: 3500,
+          duration: 4000,
           style: {
             background: '#ffffff',
             color: '#111827',
             border: '1px solid #e5e7eb',
-            borderRadius: '12px',
-            fontSize: '14px',
+            borderRadius: '14px',
+            fontSize: '13px',
             fontFamily: 'Inter, sans-serif',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-            padding: '12px 16px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+            padding: '14px 16px',
+            maxWidth: '420px',
+            lineHeight: '1.5',
           },
           success: {
+            duration: 3000,
             iconTheme: { primary: '#ca8a04', secondary: '#ffffff' },
+            style: {
+              background: '#fffbeb',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+            },
           },
           error: {
+            duration: 5000,
             iconTheme: { primary: '#ef4444', secondary: '#ffffff' },
             style: {
               background: '#fef2f2',
               color: '#991b1b',
-              border: '1px solid #fee2e2',
+              border: '1px solid #fecaca',
+              fontWeight: '600',
             },
           },
         }}

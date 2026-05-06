@@ -3,13 +3,21 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'react-hot-toast';
 import { employeeApi, roleApi } from '../api/employeeApi';
 import { extractErrorMessage } from '../utils/errorHelper';
+import { useBranchContext, BRANCH_ALL } from '../context/BranchContext';
 
 /**
  * useEmployees - Clean Architecture Hook for Employee Management
+ * Branch-aware: re-fetches automatically when selected branch changes.
  * @returns Object containing state and handlers for Employees module
  */
 export const useEmployees = () => {
   const queryClient = useQueryClient();
+  const { selectedBranchId, isInitialized } = useBranchContext();
+
+  // Resolve actual branchId to send to API
+  const branchId = (selectedBranchId && selectedBranchId !== BRANCH_ALL)
+    ? selectedBranchId
+    : undefined;
 
   // --- Search & Pagination State ---
   const [searchInput, setSearchInput] = useState('');
@@ -21,10 +29,15 @@ export const useEmployees = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setKeyword(searchInput.trim());
-      setPage(0); // Reset to first page
+      setPage(0);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchInput]);
+
+  // Reset page when branch changes
+  useEffect(() => {
+    setPage(0);
+  }, [branchId]);
 
   // --- Queries ---
 
@@ -48,7 +61,7 @@ export const useEmployees = () => {
     staleTime: 300000,
   });
 
-  // 3. Main Employees Query
+  // 3. Main Employees Query — branch-aware
   const {
     data: employeesRes,
     isLoading: loading,
@@ -56,10 +69,11 @@ export const useEmployees = () => {
     error: queryError,
     refetch
   } = useQuery({
-    queryKey: ['employees', keyword, page],
-    queryFn: () => employeeApi.getEmployees({ keyword, page, size }),
+    queryKey: ['employees', keyword, page, branchId],
+    queryFn: () => employeeApi.getEmployees({ keyword, page, size, branchId }),
     placeholderData: keepPreviousData,
     retry: 1,
+    enabled: isInitialized,
   });
 
   const employees = employeesRes?.data?.content || [];
@@ -72,21 +86,18 @@ export const useEmployees = () => {
 
   // --- Mutations ---
 
-  // Save (Create/Update)
   const saveMutation = useMutation({
-    mutationFn: ({ data, id }) => id 
-      ? employeeApi.updateEmployee(id, data) 
+    mutationFn: ({ data, id }) => id
+      ? employeeApi.updateEmployee(id, data)
       : employeeApi.createEmployee(data),
     onSuccess: (_, variables) => {
       toast.success(variables.id ? 'Cập nhật nhân viên thành công' : 'Thêm nhân viên mới thành công');
       queryClient.invalidateQueries(['employees']);
     },
-    onError: (err) => {
-      toast.error(extractErrorMessage(err, 'Không thể lưu thông tin nhân viên'));
-    }
+    // onError intentionally omitted — toast is handled by EmployeeFormModal catch block
+    throwOnError: false, // prevent React Query from surfacing as unhandled exception
   });
 
-  // Delete
   const deleteMutation = useMutation({
     mutationFn: (id) => employeeApi.deleteEmployee(id),
     onSuccess: () => {
@@ -99,20 +110,16 @@ export const useEmployees = () => {
   });
 
   // --- Handlers ---
-  const handleSearch = (val) => {
-    setSearchInput(val);
-  };
-
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-  };
+  const handleSearch = (val) => setSearchInput(val);
+  const handlePageChange = (newPage) => setPage(newPage);
 
   const saveEmployee = async (data, id) => {
     try {
       await saveMutation.mutateAsync({ data, id });
       return true;
-    } catch (e) {
-      return false;
+    } catch (err) {
+      // Re-throw so EmployeeFormModal.handleSubmit catch block can show the proper Vietnamese toast
+      throw err;
     }
   };
 

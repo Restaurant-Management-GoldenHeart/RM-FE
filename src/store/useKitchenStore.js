@@ -28,6 +28,7 @@ import kitchenServiceApi from '../services/api/kitchenServiceApi';
 import { mapKitchenItems } from '../services/mapper/kitchenMapper';
 import { inventoryApi } from '../api/inventoryApi';
 import { useAuthStore } from './useAuthStore';
+import { extractErrorMessage } from '../utils/errorHelper';
 
 // Lưu tham chiếu interval để có thể clear khi cần
 let pollingIntervalId = null;
@@ -103,10 +104,13 @@ export const useKitchenStore = create((set, get) => ({
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   /** Tải Menu Items để phục vụ tra cứu nguyên liệu */
-  fetchMenuItems: async () => {
+  fetchMenuItems: async (branchIdOverride) => {
     try {
       const { menuApi } = await import('../api/menuApi');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      // Ưu tiên branchId được truyền vào (từ page), sau đó mới đến user profile
+      const branchId = branchIdOverride ?? (useAuthStore.getState()?.user?.branchId ?? 1);
+      
+      console.log(`[KITCHEN_APP] Đang tải Menu Items cho chi nhánh: ${branchId}`);
       const response = await menuApi.getMenuItems({ branchId, size: 500 });
       set({ menuItems: response?.data?.content || [] });
     } catch (err) {
@@ -125,13 +129,12 @@ export const useKitchenStore = create((set, get) => ({
 
   /**
    * fetchPendingOrders — Tải danh sách món chờ từ Backend.
-   * Gọi trực tiếp khi cần tải lần đầu hoặc làm mới thủ công.
+   * @param {number} [branchIdOverride] - Branch cụ thể (từ BranchContext), fallback về user.branchId
    */
-  fetchPendingOrders: async () => {
-    // Chống race condition
+  fetchPendingOrders: async (branchIdOverride) => {
     if (get().isLoading) return;
 
-    const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+    const branchId = branchIdOverride ?? (useAuthStore.getState()?.user?.branchId ?? 1);
     set({ isLoading: true });
 
     try {
@@ -139,7 +142,6 @@ export const useKitchenStore = create((set, get) => ({
       const rawItems = response?.data ?? [];
       const items = mapKitchenItems(rawItems);
 
-      // Anti Flicker: Chỉ set lại state nếu dữ liệu thực sự thay đổi
       const currentDataStr = JSON.stringify(get().pendingItems);
       const newDataStr = JSON.stringify(items);
 
@@ -147,9 +149,7 @@ export const useKitchenStore = create((set, get) => ({
         set({ pendingItems: items });
       }
 
-      if (get().isLoading) {
-        set({ isLoading: false });
-      }
+      if (get().isLoading) set({ isLoading: false });
 
     } catch (err) {
       console.error('[API_ERROR][KITCHEN] Lỗi tải món bếp:', {
@@ -158,11 +158,7 @@ export const useKitchenStore = create((set, get) => ({
         status: err?.status,
         message: err?.message,
       });
-
-      if (get().isLoading) {
-        set({ isLoading: false });
-      }
-      // Không toast error trong polling để tránh spam thông báo
+      if (get().isLoading) set({ isLoading: false });
     }
   },
 
@@ -177,22 +173,25 @@ export const useKitchenStore = create((set, get) => ({
    * ⚠️ NOTE: Đây là giải pháp tạm thời vì BE chưa có WebSocket.
    * → Khi BE implement WebSocket → xóa polling này và dùng Socket.io/SockJS.
    */
-  startPolling: () => {
+  /**
+   * startPolling — Bắt đầu polling tự động để cập nhật realtime.
+   * @param {number} [branchId] - Branch để poll (từ BranchContext)
+   */
+  startPolling: (branchId) => {
     if (pollingIntervalId) {
-      console.warn('[KitchenStore] Polling đã đang chạy, không tạo thêm.');
-      return;
+      clearInterval(pollingIntervalId);
+      pollingIntervalId = null;
     }
 
-    get().fetchPendingOrders();
+    get().fetchPendingOrders(branchId);
 
     pollingIntervalId = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        get().fetchPendingOrders();
+        get().fetchPendingOrders(branchId);
       }
     }, POLLING_INTERVAL_MS);
 
     set({ pollingActive: true });
-    console.log('[KitchenStore] Polling đã được bật (mỗi 3 giây).');
   },
 
   /**
@@ -243,10 +242,10 @@ export const useKitchenStore = create((set, get) => ({
       return true;
     } catch (err) {
       console.error('[API_ERROR][KITCHEN_COMPLETE]', err);
-      const msg = err?.message || 'Không thể hoàn tất món.';
-      toast.error(err?.status === 409 ? '❌ Lỗi tồn kho hoặc thiếu công thức!' : `Lỗi: ${msg}`, {
-        position: 'bottom-center',
-      });
+      const viMsg = err?.response?.status === 409
+        ? 'Lỗi tồn kho hoặc thiếu công thức. Không thể hoàn tất món này.'
+        : extractErrorMessage(err, 'Không thể hoàn tất món. Vui lòng thử lại.');
+      toast.error(viMsg, { position: 'bottom-center' });
       return false;
     }
   },
@@ -286,7 +285,8 @@ export const useKitchenStore = create((set, get) => ({
       return true;
     } catch (err) {
       console.error('[API_ERROR][KITCHEN_CANCEL]', err);
-      toast.error('❌ Hủy món thất bại. Vui lòng thử lại!', { position: 'bottom-center' });
+      const viMsg = extractErrorMessage(err, 'Hủy món thất bại. Vui lòng thử lại.');
+      toast.error(viMsg, { position: 'bottom-center' });
       return false;
     }
   },
@@ -422,16 +422,22 @@ export const useKitchenStore = create((set, get) => ({
 
       } else if (!status) {
         // Lỗi mạng (không có status code)
-        toast.error('🌐 Mất kết nối. Vui lòng kiểm tra mạng và thử lại!', {
+        toast.error('Mất kết nối. Vui lòng kiểm tra mạng và thử lại!', {
           position: 'bottom-center',
         });
         console.error('[API_ERROR][KITCHEN_START][NETWORK]', { orderItemId, message: rawMessage });
 
       } else {
         // Lỗi server 5xx hoặc lỗi khác
-        toast.error(`Không thể bắt đầu nấu: ${rawMessage}`, { position: 'bottom-center' });
+        const viMsg = extractErrorMessage(err, 'Không thể bắt đầu nấu. Vui lòng thử lại.');
+        toast.error(viMsg, { position: 'bottom-center' });
+        
+        // Log chi tiết lỗi để debug
         console.error('[API_ERROR][KITCHEN_START][SERVER]', {
-          orderItemId, status, message: rawMessage,
+          orderItemId,
+          status: err.response?.status,
+          message: rawMessage,
+          fullError: err
         });
       }
 
@@ -481,24 +487,25 @@ export const useKitchenStore = create((set, get) => ({
    * Sử dụng O(1) lookup map và logic cache 5 phút để tối ưu performance.
    * THIẾT KẾ: FE-ONLY UPGRADE - Lấy nguồn DB để hiện đúng đơn vị.
    */
-  fetchInventoryItems: async () => {
+  fetchInventoryItems: async (branchIdOverride) => {
     try {
       const now = Date.now();
       const CACHE_TTL = 5 * 60 * 1000; // 5 phút
 
       const { inventoryItems, lastFetchedAt } = get();
+      const branchId = branchIdOverride ?? (useAuthStore.getState()?.user?.branchId ?? 1);
 
       // Chỉ fetch nếu chưa có data hoặc cache đã hết hạn
       if (inventoryItems.length > 0 && lastFetchedAt && (now - lastFetchedAt < CACHE_TTL)) {
-        console.log('[KITCHEN_APP] Sử dụng inventory cache (TTL: 5m)');
+        console.log('[KITCHEN_APP] Sử dụng inventory cache');
         return;
       }
 
       set({ isLoadingInventory: true, inventoryError: null });
-      console.log('[KITCHEN_APP] Bắt đầu tải inventory dữ liệu nguồn...');
+      console.log(`[KITCHEN_APP] Tải inventory cho chi nhánh ${branchId}...`);
 
-      // Lấy danh sách nguyên liệu (max 1000 để bao phủ toàn bộ menu)
       const res = await inventoryApi.getInventoryItems({
+        branchId,
         page: 0,
         size: 1000,
       });

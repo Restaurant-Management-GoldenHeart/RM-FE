@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Listbox } from '@headlessui/react';
 import { X, Save, Package, AlertTriangle, Loader2, Check, ChevronDown, Lock, Building2 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import toast from 'react-hot-toast';
+import { extractErrorMessage } from '../../utils/errorHelper';
 
 export default function InventoryFormModal({
   isOpen,
@@ -101,7 +103,10 @@ export default function InventoryFormModal({
     e.preventDefault();
     setFormError(null);
     setFieldErrors({});
-    if (!validate()) return;
+    if (!validate()) {
+      toast.error('Vui lòng kiểm tra lại thông tin bận đã nhập.');
+      return;
+    }
     try {
       await onSubmit({
         branchId: Number(formData.branchId),
@@ -114,9 +119,19 @@ export default function InventoryFormModal({
       });
     } catch (err) {
       const data = err.response?.data;
-      if (data?.errors) setFieldErrors(data.errors);
-      else if (data?.message) setFormError(data.message);
-      else setFormError('Đã xảy ra lỗi hệ thống, vui lòng thử lại sau.');
+
+      // Field-level validation errors from Spring Boot
+      if (data?.errors && typeof data.errors === 'object') {
+        setFieldErrors(data.errors);
+        const firstMsg = Object.values(data.errors)[0];
+        toast.error(firstMsg || 'Dữ liệu không hợp lệ.');
+        return;
+      }
+
+      // General API error
+      const msg = extractErrorMessage(err, 'Lưu nguyên vật liệu thất bại.');
+      setFormError(msg);
+      toast.error(msg);
     }
   };
 

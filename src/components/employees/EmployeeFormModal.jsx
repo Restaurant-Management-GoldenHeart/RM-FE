@@ -7,6 +7,8 @@ import {
   StickyNote, Building2, ShieldCheck, Briefcase
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import toast from 'react-hot-toast';
+import { extractErrorMessage, extractAllFieldErrors } from '../../utils/errorHelper';
 
 /**
  * EmployeeFormModal - Form for adding/editing employees
@@ -115,10 +117,32 @@ export default function EmployeeFormModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
-      onSubmit(formData);
+    if (!validate()) {
+      // Lấy lỗi đầu tiên để hiện toast
+      const firstMsg = Object.values({
+        ...(!formData.username.trim() ? { username: 'Tên đăng nhập không được để trống' } : {}),
+        ...(!isEdit && !formData.password ? { password: 'Mật khẩu không được để trống' } : {}),
+        ...(!formData.fullName.trim() ? { fullName: 'Họ tên không được để trống' } : {}),
+        ...(!formData.email.trim() ? { email: 'Email không được để trống' } : {}),
+        ...(!formData.roleId ? { roleId: 'Chưa chọn vai trò' } : {}),
+        ...(!formData.branchId ? { branchId: 'Chưa chọn chi nhánh' } : {}),
+      })[0];
+      toast.error(firstMsg || 'Vui lòng kiểm tra lại thông tin.');
+      return;
+    }
+    try {
+      await onSubmit(formData);
+    } catch (err) {
+      const fieldErrs = extractAllFieldErrors(err);
+      if (Object.keys(fieldErrs).length > 0) {
+        setErrors(prev => ({ ...prev, ...fieldErrs }));
+        const firstFieldMsg = Object.values(fieldErrs)[0];
+        toast.error(firstFieldMsg);
+      } else {
+        toast.error(extractErrorMessage(err, 'Lưu thông tin nhân viên thất bại.'));
+      }
     }
   };
 
