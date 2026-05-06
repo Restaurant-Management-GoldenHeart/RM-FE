@@ -95,6 +95,34 @@ export const useOrderStore = create((set, get) => ({
   },
 
   /**
+   * assignCustomerToOrder — Gán khách hàng vào đơn hàng.
+   * Dùng để tích điểm và áp dụng chiết khấu hội viên.
+   *
+   * BE endpoint: PUT /api/v1/orders/{orderId}/customer
+   * Body: { customerId: number }
+   *
+   * @param {number} orderId - ID đơn hàng
+   * @param {number} customerId - ID khách hàng (null nếu muốn gỡ khách)
+   */
+  assignCustomerToOrder: async (orderId, customerId) => {
+    if (!orderId) return;
+
+    try {
+      // Gọi API: PUT /api/v1/orders/{orderId}/customer
+      await orderApi.assignCustomerToOrder(orderId, customerId);
+      
+      // Đồng bộ lại dữ liệu đơn hàng để cập nhật thông tin khách hàng trên UI
+      await get().refreshOrder(orderId);
+      
+      toast.success(customerId ? '✅ Đã gắn khách hàng vào đơn!' : '✅ Đã gỡ khách hàng khỏi đơn.');
+      
+    } catch (err) {
+      log.error(`Lỗi gán khách hàng vào order #${orderId}:`, err);
+      toast.error(err?.message || 'Không thể cập nhật thông tin khách hàng.');
+    }
+  },
+
+  /**
    * serveItem — Đánh dấu một món ăn đã được phục vụ đến bàn.
    * Đổi trạng thái từ READY → SERVED.
    *

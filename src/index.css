@@ -84,6 +84,15 @@ body {
   animation: slide-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes move-bg {
+  from { background-position: 0 0; }
+  to   { background-position: 1rem 0; }
+}
+
+.animate-move-bg {
+  animation: move-bg 2s linear infinite;
+}
+
 /* ── UI COMPONENTS ─────────────────────────────────────────────── */
 .premium-card {
   background: #ffffff;

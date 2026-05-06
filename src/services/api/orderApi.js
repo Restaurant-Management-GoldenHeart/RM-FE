@@ -68,6 +68,15 @@ export const orderApi = {
     apiClient.get(`/orders/${orderId}`),
 
   /**
+   * Gán khách hàng vào một đơn hàng.
+   * BE endpoint: PUT /api/v1/orders/{orderId}/customer
+   * @param {number} orderId
+   * @param {number} customerId
+   */
+  assignCustomerToOrder: (orderId, customerId) =>
+    apiClient.put(`/orders/${orderId}/customer`, { customerId }),
+
+  /**
    * Đánh dấu một món ăn đã được phục vụ đến bàn khách.
    * Chỉ có thể phục vụ khi bếp đã COMPLETED/READY.
    *

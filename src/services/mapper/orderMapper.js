@@ -104,7 +104,8 @@ export const mapOrder = (order) => {
     id: order.orderId || order.id,
     branchId: order.branchId,
     tableId: order.tableId,
-    tableNumber: order.tableNumber || `Bàn ${order.tableId}`,
+    // BE trả về "tableName", FE cần "tableNumber" để hiển thị
+    tableNumber: order.tableName || order.tableNumber || `Bàn ${order.tableId}`,
 
     // Trạng thái order tổng thể
     status: order.status || 'PENDING',
@@ -126,5 +127,16 @@ export const mapOrder = (order) => {
 
     // ID khách hàng (nếu có)
     customerId: order.customerId ?? null,
+
+    // Thông tin khách hàng (object) — dùng trong CustomerSelector và PaymentModal
+    // BE trả về customerId + customerName riêng lẻ, FE gom thành object
+    customer: order.customerId
+      ? {
+          id: order.customerId,
+          name: order.customerName || 'Khách hàng',
+          phone: order.customerPhone || '',       // BE chưa trả về phone trong OrderResponse
+          tierName: order.customerTierName || null, // BE chưa trả về tier trong OrderResponse
+        }
+      : null,
   };
 };
