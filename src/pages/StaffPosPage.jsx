@@ -36,11 +36,14 @@ const StaffPosPage = () => {
   const user   = useAuthStore(s => s.user);
 
   useEffect(() => {
-    const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-    // Tải thực đơn từ BE theo đúng chi nhánh
+    // Ưu tiên lấy branchId từ user đã xác thực trong store.
+    // Nếu user chưa load xong (async initAuth), effect này sẽ chạy lại
+    // khi user?.branchId thay đổi nhờ dependency array bên dưới.
+    const branchId = user?.branchId ?? null;
+    if (!branchId) return; // Đợi user load xong mới fetch
     fetchInitialData(branchId);
     fetchTables(branchId);
-  }, []); // Chỉ chạy một lần khi mount
+  }, [user?.branchId]); // Re-fetch khi chi nhánh của user thay đổi
 
   /**
    * handleTableSelect — Xử lý khi nhân viên bấm chọn một bàn.

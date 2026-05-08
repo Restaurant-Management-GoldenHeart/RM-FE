@@ -50,9 +50,19 @@ export const useTableStore = create((set, get) => ({
   fetchTables: async (branchId) => {
     if (get().loading) return;
 
-    const resolvedBranchId = branchId
-      ?? useAuthStore.getState()?.user?.branchId
-      ?? 1;
+    const authUser = useAuthStore.getState()?.user;
+    const role = authUser?.role?.toUpperCase() ?? '';
+    const isAdminOrManager = role === 'ADMIN' || role === 'MANAGER';
+
+    // Resolve branchId: ưu tiên tham số truyền vào, sau đó lấy từ user profile
+    const resolvedBranchId = branchId ?? authUser?.branchId ?? null;
+
+    // STAFF/KITCHEN phải có branchId hợp lệ mới cho fetch
+    // ADMIN/MANAGER có thể fetch null để lấy tất cả chi nhánh
+    if (!resolvedBranchId && !isAdminOrManager) {
+      console.warn('[fetchTables] Chưa có branchId, bỏ qua fetch.');
+      return;
+    }
 
     set({ loading: true, error: null });
 
@@ -319,7 +329,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 5️⃣ Đồng bộ lại UI từ Backend
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       
@@ -364,7 +374,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 3. Refetch
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
 
@@ -412,7 +422,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'AVAILABLE');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       toast.success(`Đã hủy đặt bàn ${table.tableNumber}.`);
@@ -433,7 +443,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'RESERVED');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
@@ -455,7 +465,7 @@ export const useTableStore = create((set, get) => ({
     try {
       await tableApi.updateTableStatus(tableId, 'AVAILABLE');
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId); 
       // fetchTables có chứa self-healing nên sẽ tự động tách bàn ảo nếu đang là bàn chính
@@ -482,7 +492,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.mergeTables(sourceTableId, targetTableId);
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(targetTableId);
@@ -509,7 +519,7 @@ export const useTableStore = create((set, get) => ({
 
       await tableApi.splitTable(sourceTableId, targetTableId, beItems);
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(sourceTableId);
@@ -700,7 +710,7 @@ export const useTableStore = create((set, get) => ({
       get().unlockTable(toTableId);
       get().unlockTable(bridgeTable.id);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       await get().fetchTables(branchId);
       
       // Auto focus lại bàn đang thao tác thay vì bàn đích
