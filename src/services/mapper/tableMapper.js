@@ -10,7 +10,7 @@
  *   {
  *     id, branchId, branchName, areaId, areaName,
  *     tableNumber, capacity, posX, posY, width, height, displayOrder,
- *     status, merged, mergeRoot, mergeRootId, mergeRootTableNumber,
+ *     status, merged, mergeRoot, mergeRootTableId, mergeRootTableName,
  *     displayName, mergedTableIds, mergedTableNames
  *   }
  */
@@ -52,8 +52,8 @@ export const mapTable = (t) => {
     // BE tự quản lý merge: merged=true khi bàn thuộc nhóm gộp
     merged: t.merged ?? false,
     mergeRoot: t.mergeRoot ?? false,        // true = đây là bàn gốc của nhóm
-    mergeRootId: t.mergeRootId ?? null,
-    mergeRootTableNumber: t.mergeRootTableNumber ?? null,
+    mergeRootTableId: t.mergeRootTableId ?? null,
+    mergeRootTableName: t.mergeRootTableName ?? null,
     mergedTableIds: t.mergedTableIds ?? [],
     mergedTableNames: t.mergedTableNames ?? [],
 

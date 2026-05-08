@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import tableApi from '../services/api/tableApi';
 import { mapTables } from '../services/mapper/tableMapper';
 import { useAuthStore } from './useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 let _activeOrderAbortController = null;
 let _activeOrderRequestId = 0;
@@ -26,6 +27,12 @@ const getVirtualTables = () => {
 
 const setVirtualTables = (data) => {
   localStorage.setItem('goldenheart_virtual_tables', JSON.stringify(data));
+};
+
+const resolveActionableTableId = (table) => {
+  if (!table) return null;
+  if (table.isMerged && table.mainTableId) return table.mainTableId;
+  return table.id;
 };
 
 export const useTableStore = create((set, get) => ({
@@ -55,7 +62,11 @@ export const useTableStore = create((set, get) => ({
     const isAdminOrManager = role === 'ADMIN' || role === 'MANAGER';
 
     // Resolve branchId: ưu tiên tham số truyền vào, sau đó lấy từ user profile
-    const resolvedBranchId = branchId ?? authUser?.branchId ?? null;
+    const resolvedBranchId = resolveBranchId(
+      branchId,
+      getPersistedBranchId(),
+      authUser?.branchId
+    );
 
     // STAFF/KITCHEN phải có branchId hợp lệ mới cho fetch
     // ADMIN/MANAGER có thể fetch null để lấy tất cả chi nhánh
@@ -140,6 +151,15 @@ export const useTableStore = create((set, get) => ({
             status: 'MERGED', // Ép trạng thái về Đã Gộp trên UI
             isMerged: true,
             mainTableId: isChildOf.mainTableId
+          };
+        }
+
+        if (table.merged && !table.mergeRoot && table.mergeRootTableId) {
+          return {
+            ...table,
+            status: 'MERGED',
+            isMerged: true,
+            mainTableId: table.mergeRootTableId
           };
         }
 
@@ -462,8 +482,10 @@ export const useTableStore = create((set, get) => ({
     const table = get().tables.find(t => t.id === tableId);
     if (!table) return false;
 
+    const actionableTableId = resolveActionableTableId(table);
+
     try {
-      await tableApi.updateTableStatus(tableId, 'AVAILABLE');
+      await tableApi.updateTableStatus(actionableTableId, 'AVAILABLE');
       
       const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });

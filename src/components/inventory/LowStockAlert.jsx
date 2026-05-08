@@ -9,8 +9,8 @@ import { toast } from 'react-hot-toast';
 // --- Helpers ---
 const fmtNumber = (n) => new Intl.NumberFormat('vi-VN').format(n || 0);
 
-const getIngredientIcon = (name = '') => {
-  const n = name.toLowerCase();
+const renderIngredientIcon = (name = '') => {
+  const n = String(name ?? '').toLowerCase();
   if (n.includes('thịt') || n.includes('bò') || n.includes('heo') || n.includes('gà')) return Beef;
   if (n.includes('rau') || n.includes('cà rốt') || n.includes('hành') || n.includes('tỏi')) return Carrot;
   if (n.includes('bột') || n.includes('gạo') || n.includes('mì')) return Wheat;
@@ -60,13 +60,12 @@ function AlertItem({ alert, onAction }) {
   const severity = getSeverity(alert);
   if (!severity) return null;
 
-  const Icon = getIngredientIcon(alert.ingredientName);
   const unit = alert.unitSymbol || '';
 
   return (
     <div className={`flex items-center gap-4 px-4 py-3 rounded-2xl border ${severity.bg} ${severity.border} transition-all hover:bg-white/80 group`}>
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${severity.iconBg}`}>
-        <Icon size={18} />
+        {React.createElement(renderIngredientIcon(alert.ingredientName), { size: 18 })}
       </div>
 
       <div className="flex-1 min-w-0">

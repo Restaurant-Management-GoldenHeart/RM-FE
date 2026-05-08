@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import toast from 'react-hot-toast';
 import { menuApi } from '../api/menuApi';
 import { useAuthStore } from './useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,21 @@ export const usePosStore = create((set, get) => ({
     set({ menuLoading: true, error: null });
 
     // Ưu tiên branchId truyền vào, nếu không lấy từ authStore, cuối cùng fallback là 1
-    const resolvedBranchId = branchId ?? useAuthStore.getState()?.user?.branchId ?? 1;
+    const resolvedBranchId = resolveBranchId(
+      branchId,
+      getPersistedBranchId(),
+      useAuthStore.getState()?.user?.branchId
+    );
+
+    if (!resolvedBranchId) {
+      set({
+        menuItems: [],
+        categories: [],
+        menuLoading: false,
+        error: null,
+      });
+      return;
+    }
 
     try {
       const menuRes = await menuApi.getMenuItems({ 
