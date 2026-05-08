@@ -86,6 +86,36 @@ export const tableApi = {
    */
   mergeTables: (sourceTableId, targetTableId) =>
     apiClient.post('/tables/merge', { sourceTableId, targetTableId }),
+
+  /**
+   * Tạo bàn mới.
+   * BE endpoint: POST /api/v1/tables
+   */
+  createTable: (data) =>
+    apiClient.post('/tables', data),
+
+  /**
+   * Cập nhật thông tin bàn (số bàn, khu vực, sức chứa, vị trí...).
+   * BE endpoint: PUT /api/v1/tables/{tableId}
+   */
+  updateTable: (tableId, data) =>
+    apiClient.put(`/tables/${tableId}`, data),
+
+  /**
+   * Xóa bàn.
+   * BE endpoint: DELETE /api/v1/tables/{tableId}
+   * ⚠️ Chỉ cho phép xóa bàn không có lịch sử order.
+   */
+  deleteTable: (tableId) =>
+    apiClient.delete(`/tables/${tableId}`),
+
+  /**
+   * Mở bàn ngay — tạo Order rỗng PENDING và đặt bàn về OCCUPIED.
+   * BE endpoint: POST /api/v1/tables/{tableId}/open
+   */
+  openTable: (tableId) =>
+    apiClient.post(`/tables/${tableId}/open`),
+
 };
 
 export default tableApi;

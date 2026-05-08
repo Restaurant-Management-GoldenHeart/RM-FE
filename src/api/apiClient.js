@@ -53,8 +53,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Lỗi 401: Hết hạn token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Lỗi 401: Hết hạn token hoặc không hợp lệ
+    // KHÔNG tự động redirect nếu đang ở trang login hoặc đang gọi API login
+    const isAuthRequest = originalRequest.url.includes('/auth/login') || originalRequest.url.includes('/auth/refresh');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       try {
         // Thực tế: Gọi API refresh token ở đây
@@ -62,12 +65,11 @@ apiClient.interceptors.response.use(
         // setToken(data.accessToken);
         // return apiClient(originalRequest);
         
-        // Hiện tại: Xóa token và bắt login lại
+        // Hiện tại: Xóa token và để Store/Router xử lý việc redirect (tránh loop)
         removeToken();
-        window.location.href = '/login';
+        // Không dùng window.location.href nữa để tránh văng ra bất ngờ
       } catch (refreshError) {
         removeToken();
-        window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }

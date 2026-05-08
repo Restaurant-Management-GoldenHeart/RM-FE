@@ -284,17 +284,20 @@ export const useCartStore = create((set, get) => ({
 
     const { useTableStore } = await import('./useTableStore');
     const tableState = useTableStore.getState();
-    const table = tableState.tables.find(t => t.id === tableId);
+    const isTakeaway = typeof tableId === 'string' && tableId.startsWith('MV');
+    const table = isTakeaway 
+      ? tableState.takeawayOrders.find(o => o.id === tableId)
+      : tableState.tables.find(t => t.id === tableId);
 
     // Chặn nếu bàn TRỐNG VÀ chưa được chọn (chưa mở bàn)
     // KHÔNG chặn bàn RESERVED — khách đã check-in, nhân viên được phép thêm món
     // BE sẽ tự chuyển RESERVED → OCCUPIED khi order đầu tiên được tạo
-    if (table && table.status === 'AVAILABLE' && tableState.selectedTableId !== tableId) {
+    if (!isTakeaway && table && table.status === 'AVAILABLE' && tableState.selectedTableId !== tableId) {
       toast.error('⚠️ Hãy mở bàn để chọn món!');
       return;
     }
     // Chặn các trạng thái không hợp lệ (CLEANING, MERGED, v.v.)
-    if (table && !['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(table.status)) {
+    if (!isTakeaway && table && !['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(table.status)) {
       toast.error('⚠️ Bàn này hiện không thể gọi món!');
       return;
     }
@@ -728,15 +731,20 @@ export const useCartStore = create((set, get) => ({
 
 
       // Chuyển đổi CartItem sang format BE yêu cầu
+      const isTakeaway = typeof tableId === 'string' && tableId.startsWith('MV');
+      const tableState = useTableStore.getState();
+      const slot = isTakeaway ? tableState.takeawayOrders.find(o => o.id === tableId) : null;
+      const label = slot ? slot.order_number : tableId;
+
       const beItems = items.map(item => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
-        note: item.note || null,
+        note: isTakeaway ? `[${label}] ${item.note || ''}`.trim() : item.note || null,
       }));
 
       // Gọi API: POST /api/v1/orders
       const response = await orderApi.createOrAppendOrder({
-        tableId,
+        tableId: isTakeaway ? null : tableId,
         branchId,
         items: beItems,
       });
@@ -752,8 +760,17 @@ export const useCartStore = create((set, get) => ({
       }
 
       // Cập nhật table store để lấy currentOrderId mới nhất
-      await useTableStore.getState().fetchTables(branchId);
-      useTableStore.getState().selectTable(tableId);
+      if (!isTakeaway) {
+        await useTableStore.getState().fetchTables(branchId);
+        useTableStore.getState().selectTable(tableId);
+      } else {
+        // Cập nhật local state cho Takeaway
+        useTableStore.setState(state => ({
+          takeawayOrders: state.takeawayOrders.map(o => 
+            o.id === tableId ? { ...o, status: 'OCCUPIED', orderId: updatedOrder.id, time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) } : o
+          )
+        }));
+      }
 
       // Xóa draft và cờ thiếu hàng sau khi gửi thành công
       set(state => {

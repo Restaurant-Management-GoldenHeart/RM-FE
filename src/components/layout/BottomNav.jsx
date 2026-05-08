@@ -18,6 +18,7 @@ const getMobileNav = (role) => {
     { to: '/employees', label: 'Nhân sự', icon: Users },
     { to: '/customers', label: 'Khách', icon: UserCircle },
     { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
+    { to: '/table-map', label: 'Sơ đồ', icon: LayoutDashboard },
     { to: '/pos', label: 'POS', icon: ShoppingCart },
     { to: '/inventory', label: 'Kho', icon: Package },
     { to: '/kitchen', label: 'Bếp', icon: Flame },

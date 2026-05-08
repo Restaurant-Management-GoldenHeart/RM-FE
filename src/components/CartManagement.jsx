@@ -12,7 +12,7 @@
  *   - DraftItemRow: Hiển thị border đỏ & cảnh báo nguyên liệu nếu món thiếu hàng.
  *   - Nút "Gửi bếp": Có 2 trạng thái loading: isCheckingStock và isSending.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTableStore } from '../store/useTableStore';
 import { useOrderStore, selectOrderById } from '../store/useOrderStore';
 import { useCartStore, selectDraftByTable, selectDraftTotal, selectDraftCount, EMPTY_DRAFT } from '../store/useCartStore';
@@ -270,7 +270,16 @@ const SentItemRow = ({ item, orderId }) => {
 
 export const CartPanel = () => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
-  const table = useTableStore(s => s.tables.find(t => t.id === selectedTableId));
+  const tables = useTableStore(s => s.tables);
+  const takeawayOrders = useTableStore(s => s.takeawayOrders);
+
+  const table = useMemo(() => {
+    if (selectedTableId?.startsWith?.('MV')) {
+      const slot = takeawayOrders.find(o => o.id === selectedTableId);
+      return slot ? { ...slot, tableNumber: slot.order_number } : null;
+    }
+    return tables.find(t => t.id === selectedTableId);
+  }, [selectedTableId, tables, takeawayOrders]);
 
   const draftItems = useCartStore(s => s.draftItems[selectedTableId] ?? EMPTY_DRAFT);
   const draftTotal = useMemo(() => draftItems.reduce((s, i) => s + i.price * i.quantity, 0), [draftItems]);
@@ -289,10 +298,42 @@ export const CartPanel = () => {
   const insufficientItems = useCartStore(s => s.insufficientItems);
   const hasAnyShortage = Object.keys(insufficientItems).length > 0;
 
-  const orderId = table?.currentOrderId;
-  const order = useOrderStore(s => orderId ? s.orders[orderId] : null);
+  const orderId = table?.currentOrderId || table?.orderId;
+  // Fallback: nếu currentOrderId/orderId chưa có (dữ liệu cũ), tìm theo tableId trong order store
+  const orderFromStore = useOrderStore(s => {
+    if (orderId) {
+      return s.orders[orderId] || s.orders[String(orderId)] || null;
+    }
+    
+    // Chỉ tìm theo tableId nếu KHÔNG phải mang về (vì mang về tableId trên BE luôn là null)
+    if (!selectedTableId?.startsWith?.('MV')) {
+      return Object.values(s.orders).find(
+        o => o.tableId === selectedTableId && !['PAID', 'CANCELLED', 'MERGED'].includes(o.status)
+      ) ?? null;
+    }
+    return null;
+  });
+  const order = orderFromStore;
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isBypassModalOpen, setIsBypassModalOpen] = useState(false);
+
+  // ─── Auto-refresh order mỗi 30s để cập nhật trạng thái từ bếp ───
+  // Khi bếp mark items COMPLETED, POS cần biết để hiện nút "Trả món".
+  // Không dùng WebSocket → dùng polling đơn giản.
+  const refreshOrder = useOrderStore(s => s.refreshOrder);
+  const activeOrderId = order?.id;
+  const pollingRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeOrderId) return;
+    // Refresh ngay khi orderId thay đổi (vừa chọn bàn)
+    refreshOrder(activeOrderId);
+    // Sau đó poll mỗi 30s
+    pollingRef.current = setInterval(() => {
+      refreshOrder(activeOrderId);
+    }, 30_000);
+    return () => clearInterval(pollingRef.current);
+  }, [activeOrderId, refreshOrder]);
 
   const sentTotal = useMemo(() => {
     if (!order) return 0;
@@ -303,7 +344,9 @@ export const CartPanel = () => {
 
   const hasUnservedItems = useMemo(() => {
     if (!order) return false;
-    return order.items.some(i => !['SERVED', 'CANCELLED'].includes(i.status));
+    // BE cho phép checkout khi item là SERVED hoặc COMPLETED (= READY trên FE)
+    // → FE cần đồng bộ với quy tắc này để tránh lỗi 409
+    return order.items.some(i => !['SERVED', 'READY', 'CANCELLED'].includes(i.status));
   }, [order]);
 
   // isProcessing: Gộp cả 2 trạng thái loading vào 1 flag để disable nút
@@ -353,9 +396,9 @@ export const CartPanel = () => {
             </div>
             <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
               Bàn {table?.tableNumber || `#${selectedTableId}`}
-              {table?.currentOrderId && (
+              {orderId && (
                 <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-black rounded-xl border border-gray-200">
-                  #{table.currentOrderId}
+                  #{orderId}
                 </span>
               )}
             </h3>
@@ -513,16 +556,16 @@ export const CartPanel = () => {
 
           <button
             onClick={handlePaymentClick}
-            disabled={(!table?.currentOrderId && draftItems.length === 0) || isProcessing || hasUnservedItems || draftItems.length > 0}
+            disabled={(!order?.id && draftItems.length === 0) || isProcessing || hasUnservedItems || draftItems.length > 0}
             className={cn(
               "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
-              (table?.currentOrderId && order?.items?.length > 0 && !hasUnservedItems && draftItems.length === 0)
+              (order?.id && order?.items?.length > 0 && !hasUnservedItems && draftItems.length === 0)
                 ? "bg-gold-600 text-white hover:bg-gold-700 shadow-lg shadow-gold-600/20"
                 : "bg-gray-50 text-gray-200 cursor-not-allowed"
             )}
             title={hasUnservedItems ? "Còn món chưa phục vụ" : draftItems.length > 0 ? "Còn món chưa gửi bếp" : "Thanh toán"}
           >
-            <Receipt size={18} className={(table?.currentOrderId && !hasUnservedItems && draftItems.length === 0) ? "text-white" : "text-gray-200"} />
+            <Receipt size={18} className={(order?.id && !hasUnservedItems && draftItems.length === 0) ? "text-white" : "text-gray-200"} />
             Thanh toán
           </button>
         </div>
