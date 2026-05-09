@@ -3,10 +3,11 @@ import { X, AlertCircle, MessageSquare } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 const QUICK_REASONS = [
-  'Hết nguyên liệu',
-  'Khách yêu cầu',
-  'Sai món',
-  'Khác'
+  'Khách đổi ý / Gọi nhầm',
+  'Hết nguyên liệu chế biến',
+  'Món lên chậm / Khách không đợi được',
+  'Nhập sai thông tin (Số lượng/Ghi chú)',
+  'Lỗi bếp / Chế biến hỏng',
 ];
 
 /**

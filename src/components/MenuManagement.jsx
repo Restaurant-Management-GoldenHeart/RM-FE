@@ -27,11 +27,18 @@ const ProductCard = ({ product }) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleAdd = () => {
-    const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
-    // Cho phép AVAILABLE, OCCUPIED và RESERVED (khách đặt trước đã check-in)
-    // BE tự chuyển RESERVED → OCCUPIED khi order đầu tiên được tạo
-    if (!selectedTableId || !['OCCUPIED', 'AVAILABLE', 'RESERVED'].includes(table?.status)) {
-      toast.error('⚠️ Bàn chưa sẵn sàng phục vụ!');
+    const currentOrderTarget = useTableStore.getState().currentOrderTarget;
+
+    // TAKEAWAY: ID dạng 'MV1' không có trong tables → bỏ qua check status
+    if (currentOrderTarget?.type !== 'TAKEAWAY') {
+      const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
+      // Cho phép AVAILABLE, OCCUPIED và RESERVED (khách đặt trước đã check-in)
+      if (!selectedTableId || !['OCCUPIED', 'AVAILABLE', 'RESERVED'].includes(table?.status)) {
+        toast.error('⚠️ Bàn chưa sẵn sàng phục vụ!');
+        return;
+      }
+    } else if (!selectedTableId) {
+      toast.error('⚠️ Vui lòng chọn đơn mang về trước!');
       return;
     }
 

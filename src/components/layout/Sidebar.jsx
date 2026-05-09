@@ -45,6 +45,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN'],
   },
   {
+    to: '/table-map',
+    label: 'Sơ đồ bàn',
+    icon: LayoutDashboard, // Will change icon to something more appropriate if needed
+    roles: ['ADMIN', 'MANAGER'],
+  },
+  {
     to: '/pos',
     label: 'Bán hàng (POS)',
     icon: ShoppingCart,

@@ -49,7 +49,39 @@ export const useTableStore = create((set, get) => ({
   splitTransactions: {}, // { txId: { status, fromTableId, toTableId, bridgeTableId, steps } }
   lockedTableIds: [],    // Mảng ID các bàn đang bị khoá bởi transaction
 
+  // ─── Takeaway & Area State ────────────────────────────────────────────────
+  areas: [{ id: 'ALL', name: 'Tất cả' }],
+  takeawayOrders: [
+    { id: 'MV1', order_number: 'MV-01', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+    { id: 'MV2', order_number: 'MV-02', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+    { id: 'MV3', order_number: 'MV-03', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+    { id: 'MV4', order_number: 'MV-04', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+    { id: 'MV5', order_number: 'MV-05', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+    { id: 'MV6', order_number: 'MV-06', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--' },
+  ],
+  currentOrderTarget: { type: null, id: null, name: null },
+
   // ─── Actions ──────────────────────────────────────────────────────────────
+
+  setCurrentOrderTarget: (target) => set({ currentOrderTarget: target }),
+
+  /** Simple setter — dùng cho TAKEAWAY, không trigger getActiveOrder */
+  setSelectedTableId: (id) => set({ selectedTableId: id }),
+
+  fetchAreas: async (branchId) => {
+    try {
+      const { areaApi } = await import('../api/posApi');
+      const authUser = useAuthStore.getState()?.user;
+      const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
+      const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
+      
+      const res = await areaApi.getAreas(resolvedBranchId);
+      const fetchedAreas = Array.isArray(res) ? res : (res?.data || []);
+      set({ areas: [{ id: 'ALL', name: 'Tất cả' }, ...fetchedAreas] });
+    } catch (err) {
+      console.error('Fetch Areas Error:', err);
+    }
+  },
 
   /**
    * fetchTables — Tải danh sách bàn + Map Virtual Tables & Proxy Logic.
@@ -166,7 +198,21 @@ export const useTableStore = create((set, get) => ({
         return table;
       });
 
-      set({ tables: transformedTables, loading: false });
+      // ⚠️ Preserve currentOrderId từ store cũ cho các bàn vẫn còn OCCUPIED.
+      // BE không trả về currentOrderId trong GET /tables → nếu ghi đè thẳng sẽ mất tham chiếu đơn.
+      // Giải pháp: merge lại từ state hiện tại trước khi ghi vào store.
+      const existingTables = get().tables;
+      const finalTables = transformedTables.map(newTable => {
+        if (newTable.status === 'OCCUPIED' && !newTable.currentOrderId) {
+          const existing = existingTables.find(t => t.id === newTable.id);
+          if (existing?.currentOrderId) {
+            return { ...newTable, currentOrderId: existing.currentOrderId };
+          }
+        }
+        return newTable;
+      });
+
+      set({ tables: finalTables, loading: false });
     } catch (err) {
       console.error('[API_ERROR][TABLES]', err);
       set({ loading: false, error: err?.message || 'Không tải được danh sách bàn' });
@@ -408,10 +454,8 @@ export const useTableStore = create((set, get) => ({
   },
 
   /**
-   * openTable — Mở bàn hoặc Check-in khách đặt trước.
-   * - AVAILABLE → Chọn bàn (local), order tạo khi gửi bếp.
-   * - RESERVED  → Chuyển sang OCCUPIED qua API, bắt đầu luồng phục vụ.
-   * ⚠️ BE constraint: @NotEmpty (Order phải có ít nhất 1 item).
+   * openTable — Mở bàn ngay, tạo Order rỗng (PENDING) trên BE.
+   * Bàn sẽ là OCCUPIED ngay sau khi gọi API → persist qua reload.
    */
   openTable: async (tableId) => {
     const table = get().tables.find(t => t.id === tableId);
@@ -422,9 +466,49 @@ export const useTableStore = create((set, get) => ({
       return false;
     }
 
-    get().selectTable(tableId);
-    toast.success('Bàn đã sẵn sàng. Vui lòng chọn món để gửi bếp.');
-    return true;
+    try {
+      const { default: apiClient } = await import('../api/apiClient');
+      const res = await apiClient.post(`/tables/${tableId}/open`);
+      const order = res?.data?.data;
+      const orderId = order?.id;
+
+      // Cập nhật local: bàn → OCCUPIED, lưu orderId
+      set(state => ({
+        tables: state.tables.map(t =>
+          t.id === tableId ? { ...t, status: 'OCCUPIED', currentOrderId: orderId } : t
+        )
+      }));
+
+      get().selectTable(tableId);
+      toast.success('Bàn đã được mở. Vui lòng chọn món.');
+      return { orderId, order };
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Không thể mở bàn');
+      return false;
+    }
+  },
+
+  /**
+   * cancelOrder — Hủy đơn hàng và giải phóng bàn về AVAILABLE.
+   * Dùng cho nút “Đóng bàn / Hủy nhầm” trong TableActionModal.
+   */
+  cancelOrder: async (orderId) => {
+    if (!orderId) {
+      toast.error('Không tìm thấy mã đơn hàng cần đóng');
+      return false;
+    }
+    try {
+      const { default: apiClient } = await import('../api/apiClient');
+      await apiClient.post(`/orders/${orderId}/cancel`);
+
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      useTableStore.setState({ loading: false });
+      await get().fetchTables(branchId);
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Không thể đóng bàn';
+      throw new Error(msg);
+    }
   },
 
   /**
@@ -750,7 +834,76 @@ export const useTableStore = create((set, get) => ({
     }));
   },
 
-}));
+  /**
+   * createTakeawayOrder — Mở ô mang về cục bộ.
+   * Backend order được tạo LAZY khi nhân viên "Gửi bếp" lần đầu (POST /orders với tableId=null).
+   */
+  createTakeawayOrder: async (slotId, customerName) => {
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+    set(state => ({
+      takeawayOrders: state.takeawayOrders.map(o =>
+        o.id === slotId
+          ? { ...o, status: 'OCCUPIED', customerName: customerName || 'Khách lẻ', time: timeStr, orderId: null }
+          : o
+      ),
+    }));
+
+    toast.success(`Đã mở ô ${slotId} — ${customerName || 'Khách lẻ'}`);
+    return {
+      orderId: null, // tạo thật khi gửi bếp
+      order: { id: null, tableNumber: 'Mang về', customerName: customerName || 'Khách lẻ' },
+    };
+  },
+
+  /**
+   * completeTakeawayOrder — Đóng ô mang về, reset về trạng thái AVAILABLE.
+   * Gọi sau khi thanh toán thành công.
+   */
+  completeTakeawayOrder: (slotId) => {
+    set(state => ({
+      takeawayOrders: state.takeawayOrders.map(o =>
+        o.id === slotId
+          ? { id: o.id, order_number: o.order_number, customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null }
+          : o
+      ),
+    }));
+    toast.success('Đã đóng ô mang về');
+  },
+
+  /** Alias cho completeTakeawayOrder */
+  closeTakeawayOrder: (slotId) => get().completeTakeawayOrder(slotId),
+
+  /**
+   * updateTakeawayStatus — Cập nhật trạng thái bếp của ô mang về (OCCUPIED → COOKING → READY).
+   */
+  updateTakeawayStatus: (slotId, newStatus) => {
+    set(state => ({
+      takeawayOrders: state.takeawayOrders.map(o =>
+        o.id === slotId ? { ...o, status: newStatus } : o
+      ),
+    }));
+  },
+
+  /**
+   * deleteTable — Xóa bàn qua API rồi refresh danh sách.
+   */
+  deleteTable: async (tableId) => {
+    try {
+      await tableApi.deleteTable(tableId);
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      await get().fetchTables(branchId);
+      toast.success('Đã xóa bàn');
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Không thể xóa bàn';
+      toast.error(msg);
+      throw new Error(msg);
+    }
+  },
+
+}))
+;
 
 export const selectAvailableTables = state => state.tables.filter(t => t.status === 'AVAILABLE');
 export const selectOccupiedTables = state => state.tables.filter(t => t.status === 'OCCUPIED');

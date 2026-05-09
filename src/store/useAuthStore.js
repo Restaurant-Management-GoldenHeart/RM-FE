@@ -116,7 +116,7 @@ export const useAuthStore = create((set, get) => ({
       // Token hết hạn hoặc không hợp lệ -> hoặc server 500
       // Chỉ logout hoàn toàn nếu là lỗi 401 (Unauthorized) 
       // để tránh việc server die làm user bị logout sạch data.
-      if (err?.status === 401) {
+      if (err.response?.status === 401) {
         removeToken();
         localStorage.removeItem('lastBranchId');
         set({ user: null, role: null, isAuthenticated: false, loading: false });

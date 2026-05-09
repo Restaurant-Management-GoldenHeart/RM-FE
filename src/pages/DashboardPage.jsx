@@ -1,14 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
-import { useBranchContext } from '../context/BranchContext';
-import { reportApi } from '../api/reportApi';
+import { useDashboardAdapter } from '../hooks/adapters/useDashboardAdapter';
 import {
   Users, UtensilsCrossed, UserCircle, TrendingUp,
   ArrowRight, ChefHat, ShoppingCart, Calendar,
   Clock, Activity, Package, AlertCircle, AlertTriangle,
-  RefreshCw, Loader2, Store
+  RefreshCw, Loader2
 } from 'lucide-react';
+import AdminDashboard from '../components/AdminDashboard';
 
 /**
  * Skeleton — Placeholder loading effect
@@ -101,79 +99,10 @@ const ROLE_CONFIG = {
 };
 
 export default function DashboardPage() {
-  const { user, role } = useAuthStore();
-  const { buildApiParams, selectedBranchName, isAllBranches, isInitialized } = useBranchContext();
-  const isMounted = useRef(true);
-  const isFetching = useRef(false);
-  
-  // Real-time metrics from API
-  const [stats, setStats] = useState({ 
-    employees: 0, 
-    customers: 0, 
-    menuItems: 0, 
-    inventoryItems: 0 
-  });
-  
-  const [loading, setLoading] = useState({
-    employees: true,
-    customers: true,
-    menuItems: true,
-    inventoryItems: true
-  });
-
-  const [errors, setErrors] = useState({
-    employees: false,
-    customers: false,
-    menuItems: false,
-    inventoryItems: false
-  });
-
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchStats = useCallback(async () => {
-    if (isFetching.current || !isInitialized) return;
-
-    isFetching.current = true;
-    setRefreshing(true);
-    setLoading({ employees: true, customers: true, menuItems: true, inventoryItems: true });
-    setErrors({ employees: false, customers: false, menuItems: false, inventoryItems: false });
-
-    try {
-      const res = await reportApi.getDashboardReport(buildApiParams());
-
-      if (!isMounted.current) return;
-
-      const data = res?.data || {};
-
-      setStats({
-        employees: data.totalEmployees || 0,
-        customers: data.totalCustomers || 0,
-        menuItems: data.totalMenuItems || 0,
-        inventoryItems: data.totalInventoryItems || 0,
-      });
-      setErrors({ employees: false, customers: false, menuItems: false, inventoryItems: false });
-    } catch (error) {
-      if (!isMounted.current) return;
-      setErrors({ employees: true, customers: true, menuItems: true, inventoryItems: true });
-    } finally {
-      isFetching.current = false;
-      if (isMounted.current) {
-        setLoading({ employees: false, customers: false, menuItems: false, inventoryItems: false });
-        setRefreshing(false);
-      }
-    }
-  }, [buildApiParams, isInitialized]);
-
-  useEffect(() => {
-    isMounted.current = true;
-    fetchStats();
-    return () => { isMounted.current = false; };
-  }, [fetchStats]);
-
-  const allFailed = useMemo(() => 
-    Object.values(errors).every(e => e) && !Object.values(loading).some(l => l),
-    [errors, loading]
-  );
+  const { 
+    user, role, stats, loading, errors, 
+    refreshing, fetchStats, allFailed 
+  } = useDashboardAdapter();
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Chào buổi sáng' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
@@ -188,69 +117,49 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-10 animate-fade-in max-w-7xl mx-auto pb-10">
+    <div className="space-y-10 animate-fade-in max-w-7xl mx-auto px-4 sm:px-0 pb-10">
       {/* ── Header Area ── */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
-            <div className="p-2 bg-gold-600 rounded-lg shadow-lg shadow-gold-600/20 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-gold-600 rounded-lg shadow-lg shadow-gold-600/20">
               <Activity className="w-5 h-5 text-white" />
             </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${roleConfig.color} whitespace-nowrap`}>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${roleConfig.color}`}>
               {roleConfig.label}
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight truncate">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             {greeting}, <span className="text-gold-600">{displayName}</span>
           </h1>
-          <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-3">
-            <div className="flex items-center gap-1.5 text-gray-500 text-xs md:text-sm font-medium whitespace-nowrap">
-              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+          <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-1.5 text-gray-500 text-sm font-medium">
+              <Calendar className="w-4 h-4 text-gray-400" />
               <span>{dateStr}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-gray-500 text-xs md:text-sm font-medium whitespace-nowrap">
-              <Clock className="w-4 h-4 text-gray-400 shrink-0" />
-              <span>Phiên làm việc</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs md:text-sm font-bold border border-amber-200 truncate max-w-full">
-              <Store className="w-4 h-4 shrink-0" />
-              <span className="truncate">CN: {selectedBranchName}</span>
             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+        <div className="flex items-center gap-3">
           <button 
             onClick={fetchStats}
             disabled={refreshing}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all active:scale-95 shadow-sm disabled:opacity-50 group whitespace-nowrap"
+            className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
           >
-            {refreshing ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500 shrink-0" />}
-            Làm mới
-          </button>
-          <button className="flex-1 md:flex-none px-4 md:px-6 py-2.5 bg-gold-600 text-white rounded-xl text-sm font-bold hover:bg-gold-700 transition-all shadow-lg shadow-gold-600/20 active:scale-95 whitespace-nowrap">
-            Báo cáo
+            {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />}
+            Làm mới dữ liệu
           </button>
         </div>
       </div>
 
-      {/* ── Global Failure Banner ── */}
-      {allFailed && (
-        <div className="flex items-center gap-4 p-4 bg-red-50 border border-red-100 rounded-2xl animate-bounce-subtle">
-          <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/20">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-red-900">Không thể tải dữ liệu hệ thống</p>
-            <p className="text-xs text-red-600 mt-0.5">Vui lòng kiểm tra kết nối internet hoặc thử lại sau vài phút.</p>
-          </div>
-          <button onClick={fetchStats} className="px-4 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold rounded-lg hover:bg-red-50 transition-all">
-            Thử lại
-          </button>
-        </div>
+      {/* Render chi tiết Báo cáo nếu là Admin/Manager */}
+      {(role === 'ADMIN' || role === 'MANAGER') && (
+        <section className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+          <AdminDashboard />
+        </section>
       )}
 
-      {/* ── Indicators ── */}
+      {/* ── Indicators (Thống kê nhanh) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Users} label="Nhân sự" value={stats.employees}
@@ -328,13 +237,6 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <p className="text-sm font-bold text-gray-800">Máy chủ API</p>
                 <p className="text-xs text-gray-500 mt-0.5">Uptime: 99.98% (Online)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 border-t border-gray-50 pt-6">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-800">Bảo mật JWT</p>
-                <p className="text-xs text-gray-500 mt-0.5">Cấu hình refresh token an toàn</p>
               </div>
             </div>
           </div>
