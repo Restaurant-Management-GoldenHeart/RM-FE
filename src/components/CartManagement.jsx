@@ -51,82 +51,64 @@ const DraftItemRow = ({ tableId, item }) => {
 
   return (
     <div className={cn(
-      // Transition smooth khi chuyển từ normal sang lỗi và ngược lại
-      "flex flex-col gap-2 p-4 rounded-2xl border shadow-sm animate-in slide-in-from-right duration-300 transition-all",
-      hasShortage
-        // Khi thiếu hàng: border đỏ, nền đỏ nhạt để nhân viên nhận ra ngay
-        ? "bg-red-50/60 border-red-300 ring-1 ring-red-200"
-        // Bình thường: border vàng nhạt (màu thương hiệu)
-        : "bg-white border-gold-100"
+      "flex flex-col gap-1.5 md:gap-2 p-3 md:p-4 rounded-xl md:rounded-2xl border shadow-sm animate-in slide-in-from-right duration-300 transition-all",
+      hasShortage ? "bg-red-50/60 border-red-300 ring-1 ring-red-200" : "bg-white border-gold-100"
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 md:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {/* Dot màu thay đổi theo trạng thái thiếu hàng */}
-            <span className={cn(
-              "w-2 h-2 rounded-full shrink-0",
-              hasShortage ? "bg-red-500 animate-pulse" : "bg-gold-400"
-            )} />
+            <span className={cn("w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0", hasShortage ? "bg-red-500 animate-pulse" : "bg-gold-400")} />
             <h5 className={cn(
-              "font-black text-sm truncate uppercase tracking-tight",
+              "font-black text-scale-xs md:text-scale-sm truncate uppercase tracking-tight",
               hasShortage ? "text-red-700" : "text-gray-900"
             )}>{item.name}</h5>
           </div>
-          <p className={cn(
-            "text-xs font-black mt-1",
-            hasShortage ? "text-red-400" : "text-gold-600"
-          )}>{formatVND(item.price)}</p>
+          <p className={cn("text-[10px] md:text-xs font-black mt-0.5 md:mt-1", hasShortage ? "text-red-400" : "text-gold-600")}>{formatVND(item.price)}</p>
         </div>
 
-        <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-1 border border-gray-100">
+        <div className="flex items-center gap-1 md:gap-2 bg-gray-50 rounded-lg md:rounded-xl p-0.5 md:p-1 border border-gray-100">
           <button
             onClick={() => updateQuantity(tableId, item.menuItemId, item.quantity - 1)}
-            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-600 rounded-lg hover:bg-white"
+            className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center text-gray-400 hover:text-red-600 rounded-lg hover:bg-white transition-colors"
           >
-            <Minus size={14} />
+            <Minus size={12} />
           </button>
-          <span className="text-sm font-black w-6 text-center tabular-nums text-gray-900">{item.quantity}</span>
+          <span className="text-[11px] md:text-sm font-black w-4 md:w-6 text-center tabular-nums text-gray-900">{item.quantity}</span>
           <button
             onClick={() => updateQuantity(tableId, item.menuItemId, item.quantity + 1)}
-            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gold-600 rounded-lg hover:bg-white"
+            className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center text-gray-400 hover:text-gold-600 rounded-lg hover:bg-white transition-colors"
           >
-            <Plus size={14} />
+            <Plus size={12} />
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2">
           <button
             onClick={() => setShowNote(!showNote)}
             className={cn(
-              "w-9 h-9 flex items-center justify-center rounded-xl transition-all border",
+              "w-7 h-7 md:w-9 md:h-9 flex items-center justify-center rounded-lg md:rounded-xl transition-all border",
               item.note ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-gray-50 border-gray-100 text-gray-400"
             )}
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={14} className="md:w-4 md:h-4" />
           </button>
 
           <button
             onClick={() => updateQuantity(tableId, item.menuItemId, 0)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl transition-all border border-red-50 text-red-300 hover:text-red-500 hover:bg-red-50"
-            title="Xoá món"
+            className="w-7 h-7 md:w-9 md:h-9 flex items-center justify-center rounded-lg md:rounded-xl transition-all border border-red-50 text-red-200 hover:text-red-500 hover:bg-red-50"
           >
-            <Trash2 size={16} />
+            <Trash2 size={14} className="md:w-4 md:h-4" />
           </button>
         </div>
       </div>
 
-      {/*
-        Hiển thị cảnh báo thiếu nguyên liệu bên dưới tên món.
-        Lý do đặt ở đây (không phải toast): Giúp nhân viên nhìn thấy
-        ngay MON NÀO bị ảnh hưởng mà không cần nhớ nội dung toast.
-      */}
       {hasShortage && (
         <div className="mt-1 flex flex-col gap-1 px-1">
           {shortages.map((s, idx) => (
             <div key={idx} className="flex items-center gap-1.5">
-              <PackageX size={11} className="text-red-500 shrink-0" />
-              <p className="text-[10px] font-bold text-red-600">
-                Hết <span className="font-black">{s.name}</span>: cần {s.needed}{s.unit ? ` ${s.unit}` : ''}, còn {s.inStock}{s.unit ? ` ${s.unit}` : ''}
+              <PackageX size={10} className="text-red-500 shrink-0" />
+              <p className="text-[9px] md:text-[10px] font-bold text-red-600">
+                Hết <span className="font-black">{s.name}</span>: cần {s.needed}, còn {s.inStock}
               </p>
             </div>
           ))}
@@ -139,8 +121,8 @@ const DraftItemRow = ({ tableId, item }) => {
           value={item.note}
           autoFocus
           onChange={(e) => updateNote(tableId, item.menuItemId, e.target.value)}
-          placeholder="Thêm ghi chú (ví dụ: ít cay, không hành...)"
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none focus:border-gold-300 transition-all font-medium"
+          placeholder="Thêm ghi chú..."
+          className="w-full px-2.5 py-1.5 md:px-3 md:py-2 bg-gray-50 border border-gray-100 rounded-lg md:rounded-xl text-[10px] md:text-xs outline-none focus:border-gold-300 transition-all font-medium"
         />
       )}
     </div>
@@ -166,35 +148,33 @@ const SentItemRow = ({ item, orderId }) => {
 
   return (
     <div className={cn(
-      "flex flex-col gap-2 p-4 rounded-2xl border transition-all",
+      "flex flex-col gap-1 md:gap-2 p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all",
       item.status === 'CANCELLED' ? "bg-red-50/30 border-red-50" : "bg-white border-gray-100"
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 md:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={cn("w-2 h-2 rounded-full shrink-0", config.dot)} />
+            <span className={cn("w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0", config.dot)} />
             <h5 className={cn(
-              "font-bold text-sm truncate uppercase tracking-tight",
+              "font-bold text-scale-xs md:text-scale-sm truncate uppercase tracking-tight",
               item.status === 'CANCELLED' ? "text-gray-400 line-through" : "text-gray-700"
             )}>
               {item.name}
             </h5>
           </div>
-          <div className="flex items-center gap-3 mt-1 pl-4">
-            <p className="text-xs font-bold text-gray-400">{formatVND(item.price)}</p>
-            <span className="text-[10px] text-gray-300">×</span>
-            <span className="text-xs font-black text-gray-900">{item.quantity}</span>
+          <div className="flex items-center gap-2 md:gap-3 mt-0.5 md:mt-1 pl-3 md:pl-4">
+            <p className="text-[10px] md:text-xs font-bold text-gray-400">{formatVND(item.price)}</p>
+            <span className="text-[9px] md:text-[10px] text-gray-300">×</span>
+            <span className="text-[11px] md:text-xs font-black text-gray-900">{item.quantity}</span>
           </div>
 
-          {/* Hiển thị lý do huỷ món ngay bên dưới tên món để nhân viên
-              có thể xem lại lý do mà không cần mở thêm màn hình nào */}
           {item.status === 'CANCELLED' && item.cancelReason && (
-            <div className="mt-2 ml-4 flex items-start gap-1.5">
-              <AlertCircle size={11} className="text-red-400 shrink-0 mt-0.5" />
-              <p className="text-[10px] font-bold text-red-500 leading-snug italic">
+            <div className="mt-1.5 ml-3 md:ml-4 flex items-start gap-1.5">
+              <AlertCircle size={10} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[9px] md:text-[10px] font-bold text-red-500 leading-snug italic">
                 {item.cancelReason.replace('[FORCE] ', '')}
                 {item.cancelReason.includes('[FORCE]') && (
-                  <span className="ml-1 not-italic font-black text-red-700 bg-red-100 px-1 py-0.5 rounded text-[9px]">
+                  <span className="ml-1 not-italic font-black text-red-700 bg-red-100 px-1 py-0.5 rounded text-[8px]">
                     FORCE
                   </span>
                 )}
@@ -204,62 +184,42 @@ const SentItemRow = ({ item, orderId }) => {
         </div>
 
         <div className={cn(
-          "px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider shrink-0",
+          "px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg border text-[8px] md:text-[9px] font-black uppercase tracking-wider shrink-0",
           config.label === 'Đã huỷ' ? 'border-red-100 bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500 border-gray-100'
         )}>
           {config.label}
         </div>
 
-        {/* Nút huỷ món thường — chỉ hiện khi status SENT */}
         {item.status === 'SENT' && (
           <button
             onClick={() => setCancelModal({ isOpen: true, isForce: false })}
-            className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-            title="Huỷ món"
+            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
           >
-            <X size={16} />
+            <X size={14} className="md:w-4 md:h-4" />
           </button>
         )}
 
-        {/* Nút huỷ cưỡng bức — chỉ hiện khi PREPARING (thêm cảnh báo đỏ) */}
         {item.status === 'PREPARING' && (
           <button
             onClick={() => setCancelModal({ isOpen: true, isForce: true })}
-            className="w-8 h-8 flex items-center justify-center text-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-            title="Huỷ món đang nấu (Cần quyền Manager)"
+            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
           >
-            <AlertCircle size={16} />
+            <AlertCircle size={14} className="md:w-4 md:h-4" />
           </button>
         )}
 
-        {/* Modal nhập lý do huỷ — Bắt buộc nhập lý do trước khi xác nhận */}
-        <CancelReasonModal
-          isOpen={cancelModal.isOpen}
-          itemName={item.name}
-          isForce={cancelModal.isForce}
-          onConfirm={(reason) => {
-            // Đóng modal trước để tránh nhấn 2 lần
-            setCancelModal({ ...cancelModal, isOpen: false });
-            // Gọi cancelItem với lý do đã nhập — store sẽ xử lý Optimistic update + API call
-            cancelItem({ orderId, itemId: item.id, reason });
-          }}
-          onClose={() => setCancelModal({ ...cancelModal, isOpen: false })}
-        />
-
-        {/* Nút "Trả món" — chỉ hiện khi READY (bếp đã xong, chờ mang ra bàn) */}
         {item.status === 'READY' && (
           <button
             onClick={() => serveItem(orderId, item.id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
+            className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 bg-emerald-600 text-white rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20"
           >
-            <Check size={14} /> Trả món
+            <Check size={12} className="md:w-[14px] md:h-[14px]" /> Trả món
           </button>
         )}
       </div>
 
-      {/* Ghi chú của món (ví dụ: ít cay, không hành) */}
       {item.note && (
-        <p className="text-[10px] text-gray-400 bg-gray-50/50 px-2 py-1 rounded-lg border border-dashed border-gray-100 ml-4">
+        <p className="text-[9px] md:text-[10px] text-gray-400 bg-gray-50/50 px-2 py-1 rounded-lg border border-dashed border-gray-100 ml-3 md:ml-4">
           "{item.note}"
         </p>
       )}
@@ -356,7 +316,7 @@ export const CartPanel = () => {
   const handleSend = async () => {
     await sendToKitchen({ tableId: selectedTableId });
   };
-  
+
   // ─── Hàm xử lý khi nhấn nút "Thanh toán" ───
   const handlePaymentClick = () => {
     setIsPaymentOpen(true);
@@ -385,13 +345,13 @@ export const CartPanel = () => {
             <div className="flex items-center gap-2 mb-1.5">
               <div className={cn("w-2 h-2 rounded-full",
                 table?.status === 'OCCUPIED' ? "bg-amber-500 animate-pulse"
-                : table?.status === 'RESERVED' ? "bg-blue-500"
-                : "bg-emerald-500"
+                  : table?.status === 'RESERVED' ? "bg-blue-500"
+                    : "bg-emerald-500"
               )} />
               <span className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em]">
                 {table?.status === 'OCCUPIED' ? 'Bàn đang bận'
-                : table?.status === 'RESERVED' ? 'Khách đặt trước'
-                : 'Bàn trống'}
+                  : table?.status === 'RESERVED' ? 'Khách đặt trước'
+                    : 'Bàn trống'}
               </span>
             </div>
             <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
@@ -421,9 +381,9 @@ export const CartPanel = () => {
         {/* Section: Customer Selection (Gắn khách hàng vào đơn) */}
         {order && (
           <div className="mb-4">
-            <CustomerSelector 
-              orderId={order.id} 
-              selectedCustomer={order.customer} 
+            <CustomerSelector
+              orderId={order.id}
+              selectedCustomer={order.customer}
             />
           </div>
         )}
@@ -485,23 +445,23 @@ export const CartPanel = () => {
       </div>
 
       {/* ── Footer ── */}
-      <div className="p-6 bg-white border-t border-gray-100 space-y-4 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+      <div className="p-4 md:p-6 bg-white border-t border-gray-100 space-y-3 md:space-y-4 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
         <div className="space-y-2">
           {draftTotal > 0 && (
-            <div className="flex justify-between items-center text-xs">
+            <div className="flex justify-between items-center text-[10px] md:text-xs">
               <span className="text-gray-400 font-bold uppercase tracking-wider">Món mới:</span>
               <span className="text-gold-600 font-black tracking-tight">{formatVND(draftTotal)}</span>
             </div>
           )}
-          <div className="flex justify-between items-end">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Tổng tạm tính</p>
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-black rounded-lg uppercase">
+          <div className="flex justify-between items-end gap-2">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] truncate">Tổng tạm tính</p>
+              <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[8px] md:text-[10px] font-black rounded-lg uppercase whitespace-nowrap">
                 {draftItems.length + (order?.items.length || 0)} món
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-3xl font-black text-gray-900 tracking-tighter tabular-nums">
+            <div className="text-right min-w-0">
+              <span className="text-xl md:text-3xl font-black text-gray-900 tracking-tighter tabular-nums truncate block">
                 {formatVND(draftTotal + sentTotal)}
               </span>
             </div>

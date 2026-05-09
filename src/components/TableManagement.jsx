@@ -10,7 +10,6 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useTableStore } from '../store/useTableStore';
-import { useOrderStore } from '../store/useOrderStore';
 import SplitTableModal from './pos/SplitTableModal';
 import FloorPlanView from './table-map/FloorPlanView';
 import TakeawayCard from './pos/TakeawayCard';
@@ -18,13 +17,11 @@ import TakeawayActionModal from './pos/TakeawayActionModal';
 import CustomerNameModal from './pos/CustomerNameModal';
 import { cn } from '../utils/cn';
 import {
-  LayoutGrid, Users, CircleDot, ChefHat,
+  LayoutGrid, ChefHat,
   Clock, CalendarClock, X, CheckCircle2,
   Loader2, TrendingUp, Sparkles, ArrowRightLeft,
-  Phone, User as UserIcon, Settings, ShoppingBag, Plus,
-  Pencil, Trash2
+  Phone, User as UserIcon, ShoppingBag
 } from 'lucide-react';
-import { useAuthStore } from '../store/useAuthStore';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
@@ -234,9 +231,7 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
 
 // ─── Main Component: TableList ───
 export const TableList = ({ currentOrderTarget, onTableSelect }) => {
-  const { tables, areas, fetchAreas, takeawayOrders, createTakeawayOrder, deleteTable, loading, fetchTables } = useTableStore();
-  const role = useAuthStore(s => s.role);
-  const isAdmin = role === 'ADMIN'; 
+  const { tables, areas, fetchAreas, takeawayOrders, createTakeawayOrder, loading, fetchTables } = useTableStore();
   
   const [mode, setMode] = useState('DINE_IN');
   const [filter, setFilter] = useState('ALL');
@@ -250,13 +245,6 @@ export const TableList = ({ currentOrderTarget, onTableSelect }) => {
     if (areas.length <= 1) fetchAreas(); // chỉ có 'Tất cả' mặc định → chưa fetch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const stats = useMemo(() => ({ 
-    total: tables?.length || 0, 
-    avail: (tables || []).filter(t => t.status === 'AVAILABLE').length, 
-    occu: (tables || []).filter(t => t.status === 'OCCUPIED').length, 
-    dirty: (tables || []).filter(t => t.status === 'DIRTY').length 
-  }), [tables]);
 
   // Chỉ filter theo status — area filtering được delegate cho FloorPlanView
   const filtered = useMemo(() => {

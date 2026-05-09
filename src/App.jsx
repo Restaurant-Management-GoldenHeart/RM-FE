@@ -185,9 +185,10 @@ export default function App() {
       <Toaster
         position="top-right"
         gutter={8}
+        containerClassName="pos-toaster"
         containerStyle={{
-          // Mobile: bottom-center với khoảng cách với thanh nav
           top: 'env(safe-area-inset-top, 16px)',
+          bottom: 'calc(env(safe-area-inset-bottom, 16px) + 72px)',
         }}
         toastOptions={{
           duration: 4000,

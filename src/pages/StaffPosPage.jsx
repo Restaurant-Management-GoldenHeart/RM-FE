@@ -14,31 +14,19 @@
 import React, { useEffect } from 'react';
 import { usePOSAdapter } from '../hooks/adapters/usePOSAdapter';
 import { useBranchContext } from '../context/BranchContext';
-import { useTableStore } from '../store/useTableStore';
 import { TableList } from '../components/TableManagement';
 import { MenuGrid } from '../components/MenuManagement';
 import { CartPanel } from '../components/CartManagement';
 import { Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-
-const ROLE_LABELS = {
-  ADMIN: 'Quản trị viên',
-  MANAGER: 'Quản lý',
-  STAFF: 'Phục vụ',
-  KITCHEN: 'Bếp trưởng',
-};
 
 const StaffPosPage = () => {
   const { selectedBranchId } = useBranchContext();
   const {
     menuItems, menuLoading, tablesLoading, currentOrderTarget,
-    user, role,
     fetchInitialData, fetchTables, setCurrentOrderTarget,
     selectTable, setSelectedTableId,
-    setOrder, refreshOrder, logout
+    setOrder, refreshOrder
   } = usePOSAdapter();
-  
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Tải dữ liệu ban đầu theo chi nhánh đã chọn
@@ -46,11 +34,6 @@ const StaffPosPage = () => {
     // fetchTables sẽ dùng branchId từ context
     fetchTables(selectedBranchId);
   }, [fetchInitialData, fetchTables, selectedBranchId]);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   const handleTableSelect = ({ table, orderId, order }) => {
     const isTakeaway = table.tableNumber === 'Mang về';

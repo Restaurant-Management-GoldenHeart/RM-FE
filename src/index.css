@@ -45,6 +45,7 @@ body {
   min-height: 100vh;
   background-color: #fafafb; /* Lighter, warmer gray-50 */
   color: #111827; /* Deep Charcoal for main text */
+  touch-action: manipulation; /* Prevent double-tap zoom on all interactive elements */
 }
 
 #root {
@@ -97,7 +98,7 @@ body {
 .premium-card {
   background: #ffffff;
   border: 1px solid #f3f4f6; /* Very subtle border */
-  border-radius: 1rem;
+  border-radius: 1.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.01);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -107,6 +108,35 @@ body {
   border-color: #ca8a0422;
   transform: translateY(-2px);
 }
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-gold {
+  background: rgba(202, 138, 4, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(202, 138, 4, 0.1);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Responsive Text Scaling Utilities - Optimized for compact POS */
+.text-scale-xs { font-size: clamp(0.65rem, 0.55rem + 0.2vw, 0.75rem); }
+.text-scale-sm { font-size: clamp(0.75rem, 0.65rem + 0.25vw, 0.85rem); }
+.text-scale-base { font-size: clamp(0.85rem, 0.75rem + 0.35vw, 1rem); }
+.text-scale-lg { font-size: clamp(1rem, 0.9rem + 0.45vw, 1.25rem); }
+.text-scale-xl { font-size: clamp(1.2rem, 1rem + 0.6vw, 1.6rem); }
 
 /* Data Table Styles (Clean & High Contrast) */
 .data-table-container {
@@ -148,4 +178,24 @@ body {
 }
 .bg-premium-gold {
   background-color: #ca8a04;
+}
+
+/* ── Safe Area (iOS Notch / Home Bar) ──────────────────────────────────────── */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Toast Notification Adjustments ──────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .pos-toaster {
+    top: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 16px) + 80px) !important; /* Tránh bottom tab bar */
+    justify-content: center !important;
+  }
+  .pos-toaster > div {
+    justify-content: flex-end !important; /* Đẩy toast từ dưới lên */
+  }
 }
