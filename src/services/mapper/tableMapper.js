@@ -6,10 +6,12 @@
  * - Nếu BE đổi tên trường → chỉ cần sửa mapper này, không cần chạm vào UI.
  * - Xử lý defensive: trường hợp BE thiếu field → dùng giá trị mặc định an toàn.
  *
- * Cấu trúc BE trả về (RestaurantTable):
+ * Cấu trúc BE trả về (RestaurantTableResponse):
  *   {
- *     id, branchId, areaId, tableNumber, capacity,
- *     posX, posY, width, height, status, currentOrderId
+ *     id, branchId, branchName, areaId, areaName,
+ *     tableNumber, capacity, posX, posY, width, height, displayOrder,
+ *     status, merged, mergeRoot, mergeRootTableId, mergeRootTableName,
+ *     displayName, mergedTableIds, mergedTableNames
  *   }
  */
 
@@ -26,28 +28,39 @@ export const mapTable = (t) => {
     // --- Thông tin định danh ---
     id: t.id,
     branchId: t.branchId,
+    branchName: t.branchName ?? null,
     areaId: t.areaId ?? null,
+    areaName: t.areaName ?? null,
 
     // --- Hiển thị ---
-    // BE dùng "tableNumber" (ví dụ: "T01"), FE hiển thị trực tiếp
-    tableNumber: t.tableNumber || `Bàn ${t.id}`,    // Phòng thủ: nếu BE thiếu tableNumber
-    capacity: t.capacity ?? 4,                        // Mặc định 4 chỗ nếu BE chưa cung cấp
+    tableNumber: t.tableNumber || `Bàn ${t.id}`,
+    displayName: t.displayName || t.tableNumber || `Bàn ${t.id}`,
+    capacity: t.capacity ?? 4,
+    displayOrder: t.displayOrder ?? null,
 
-    // --- Trạng thái quan trọng ---
-    // AVAILABLE | OCCUPIED | RESERVED | CLEANING | DIRTY
-    // ⚠️ NOTE BE: BE dùng "CLEANING" (sau thanh toán), FE dùng "DIRTY" để hiển thị
-    // → Nếu BE trả về CLEANING → map thành DIRTY để đồng bộ với UI
-    status: t.status === 'CLEANING' ? 'CLEANING' : (t.status || 'AVAILABLE'),
-
-    // --- Liên kết đơn hàng ---
-    // currentOrderId = null nếu bàn đang trống
-    currentOrderId: t.currentOrderId ?? null,
-
-    // --- Vị trí trên sơ đồ (nếu có) ---
+    // --- Vị trí trên sơ đồ ---
     posX: t.posX ?? 0,
     posY: t.posY ?? 0,
     width: t.width ?? 120,
     height: t.height ?? 100,
+
+    // --- Trạng thái ---
+    // AVAILABLE | OCCUPIED | RESERVED | CLEANING
+    status: t.status || 'AVAILABLE',
+
+    // --- Gộp bàn (BE native merge) ---
+    // BE tự quản lý merge: merged=true khi bàn thuộc nhóm gộp
+    merged: t.merged ?? false,
+    mergeRoot: t.mergeRoot ?? false,        // true = đây là bàn gốc của nhóm
+    mergeRootTableId: t.mergeRootTableId ?? null,
+    mergeRootTableName: t.mergeRootTableName ?? null,
+    mergedTableIds: t.mergedTableIds ?? [],
+    mergedTableNames: t.mergedTableNames ?? [],
+
+    // --- Liên kết đơn hàng ---
+    // BE không trả về currentOrderId trực tiếp;
+    // FE tự load order riêng khi cần qua GET /tables/{id}/active-order
+    currentOrderId: t.currentOrderId ?? null,
   };
 };
 
@@ -60,7 +73,6 @@ export const mapTable = (t) => {
  */
 export const mapTables = (tables) => {
   if (!Array.isArray(tables)) {
-    // ⚠️ NOTE BE: Nếu BE không trả về mảng → ghi log và trả về mảng rỗng
     console.warn('[tableMapper] BE không trả về mảng bàn. Nhận được:', typeof tables, tables);
     return [];
   }

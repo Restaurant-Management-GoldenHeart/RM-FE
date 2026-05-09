@@ -9,7 +9,7 @@
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTableStore } from '../store/useTableStore';
-import { useCartStore, selectItemQtyInDraft, EMPTY_DRAFT } from '../store/useCartStore';
+import { useCartStore, EMPTY_DRAFT } from '../store/useCartStore';
 import { usePosStore } from '../store/usePosStore'; // Lấy menuItems từ store gốc
 import { cn } from '../utils/cn';
 import { Search, Plus, UtensilsCrossed, Loader2, Frown, Check } from 'lucide-react';
@@ -17,6 +17,8 @@ import toast from 'react-hot-toast';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
+
+const normalizeText = (value) => String(value ?? '').toLowerCase();
 
 const ProductCard = ({ product }) => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
@@ -119,7 +121,9 @@ export const MenuGrid = () => {
     return menuItems.filter(item => {
       const itemCatId = item.categoryId ?? item.category?.id;
       const matchesCategory = activeCategoryId === 'all' || itemCatId === activeCategoryId;
-      const matchesSearch = !debouncedSearch.trim() || item.name.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
+      const matchesSearch =
+        !debouncedSearch.trim() ||
+        normalizeText(item.name).includes(normalizeText(debouncedSearch).trim());
       return matchesCategory && matchesSearch;
     });
   }, [menuItems, activeCategoryId, debouncedSearch]);

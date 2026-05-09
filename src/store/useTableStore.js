@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import tableApi from '../services/api/tableApi';
 import { mapTables } from '../services/mapper/tableMapper';
 import { useAuthStore } from './useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 let _activeOrderAbortController = null;
 let _activeOrderRequestId = 0;
@@ -26,6 +27,12 @@ const getVirtualTables = () => {
 
 const setVirtualTables = (data) => {
   localStorage.setItem('goldenheart_virtual_tables', JSON.stringify(data));
+};
+
+const resolveActionableTableId = (table) => {
+  if (!table) return null;
+  if (table.isMerged && table.mainTableId) return table.mainTableId;
+  return table.id;
 };
 
 export const useTableStore = create((set, get) => ({
@@ -83,8 +90,22 @@ export const useTableStore = create((set, get) => ({
     if (get().loading) return;
 
     const authUser = useAuthStore.getState()?.user;
-    const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
-    const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
+    const role = authUser?.role?.toUpperCase() ?? '';
+    const isAdminOrManager = role === 'ADMIN' || role === 'MANAGER';
+
+    // Resolve branchId: ưu tiên tham số truyền vào, sau đó lấy từ user profile
+    const resolvedBranchId = resolveBranchId(
+      branchId,
+      getPersistedBranchId(),
+      authUser?.branchId
+    );
+
+    // STAFF/KITCHEN phải có branchId hợp lệ mới cho fetch
+    // ADMIN/MANAGER có thể fetch null để lấy tất cả chi nhánh
+    if (!resolvedBranchId && !isAdminOrManager) {
+      console.warn('[fetchTables] Chưa có branchId, bỏ qua fetch.');
+      return;
+    }
 
     set({ loading: true, error: null });
 
@@ -162,6 +183,15 @@ export const useTableStore = create((set, get) => ({
             status: 'MERGED', // Ép trạng thái về Đã Gộp trên UI
             isMerged: true,
             mainTableId: isChildOf.mainTableId
+          };
+        }
+
+        if (table.merged && !table.mergeRoot && table.mergeRootTableId) {
+          return {
+            ...table,
+            status: 'MERGED',
+            isMerged: true,
+            mainTableId: table.mergeRootTableId
           };
         }
 
@@ -365,7 +395,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 5️⃣ Đồng bộ lại UI từ Backend
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       
@@ -410,7 +440,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 3. Refetch
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
 
@@ -496,7 +526,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'AVAILABLE');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       toast.success(`Đã hủy đặt bàn ${table.tableNumber}.`);
@@ -517,7 +547,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'RESERVED');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
@@ -536,10 +566,12 @@ export const useTableStore = create((set, get) => ({
     const table = get().tables.find(t => t.id === tableId);
     if (!table) return false;
 
+    const actionableTableId = resolveActionableTableId(table);
+
     try {
-      await tableApi.updateTableStatus(tableId, 'AVAILABLE');
+      await tableApi.updateTableStatus(actionableTableId, 'AVAILABLE');
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId); 
       // fetchTables có chứa self-healing nên sẽ tự động tách bàn ảo nếu đang là bàn chính
@@ -566,7 +598,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.mergeTables(sourceTableId, targetTableId);
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(targetTableId);
@@ -593,7 +625,7 @@ export const useTableStore = create((set, get) => ({
 
       await tableApi.splitTable(sourceTableId, targetTableId, beItems);
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(sourceTableId);
@@ -784,7 +816,7 @@ export const useTableStore = create((set, get) => ({
       get().unlockTable(toTableId);
       get().unlockTable(bridgeTable.id);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
       await get().fetchTables(branchId);
       
       // Auto focus lại bàn đang thao tác thay vì bàn đích
