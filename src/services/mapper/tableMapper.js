@@ -45,8 +45,9 @@ export const mapTable = (t) => {
     height: t.height ?? 100,
 
     // --- Trạng thái ---
-    // AVAILABLE | OCCUPIED | RESERVED | CLEANING
-    status: t.status || 'AVAILABLE',
+    // BE: AVAILABLE | OCCUPIED | RESERVED | CLEANING
+    // FE: AVAILABLE | OCCUPIED | RESERVED | DIRTY
+    status: (t.status === 'CLEANING' ? 'DIRTY' : (t.status || 'AVAILABLE')),
 
     // --- Gộp bàn (BE native merge) ---
     // BE tự quản lý merge: merged=true khi bàn thuộc nhóm gộp

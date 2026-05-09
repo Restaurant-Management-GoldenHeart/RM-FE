@@ -8,9 +8,9 @@ import { useBranchContext, BRANCH_ALL } from '../../context/BranchContext';
 import { employeeApi } from '../../api/employeeApi';
 
 const ROLE_LABELS = {
-  ADMIN:   'Quản trị viên',
+  ADMIN: 'Quản trị viên',
   MANAGER: 'Quản lý',
-  STAFF:   'Phục vụ',
+  STAFF: 'Phục vụ',
   KITCHEN: 'Bếp trưởng',
 };
 
@@ -23,15 +23,20 @@ function MobileBranchPill({ role }) {
 
   const stripPrefix = (name) => {
     if (!name) return name;
-    const idx = name.indexOf(' - ');
-    return idx !== -1 ? name.slice(idx + 3) : name;
+    // Fix common encoding issues (hotfix for mangled text from BE)
+    // let clean = name.replace(/Chi\nh?nh/g, 'Chi nhánh')
+    //                 .replace(/Qu?n/g, 'Quận')
+    //                 .replace(/TSS\s?\|\|\s?°?NG/g, 'Tầng');
+
+    const idx = clean.indexOf(' - ');
+    return idx !== -1 ? clean.slice(idx + 3) : clean;
   };
 
   useEffect(() => {
     if (role === 'ADMIN') {
       employeeApi.getBranches()
         .then(res => setBranches(res.data || []))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [role]);
 
@@ -92,9 +97,8 @@ function MobileBranchPill({ role }) {
               <button
                 key={b.id}
                 onClick={() => { changeBranch(b.id, b.name); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-colors ${
-                  selectedBranchId === b.id ? 'bg-amber-50' : 'hover:bg-gray-50'
-                }`}
+                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-colors ${selectedBranchId === b.id ? 'bg-amber-50' : 'hover:bg-gray-50'
+                  }`}
                 title={b.name}
               >
                 <div className="w-4 h-4 shrink-0 flex items-center justify-center">

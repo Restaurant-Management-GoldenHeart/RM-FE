@@ -22,8 +22,8 @@ const normalizeText = (value) => String(value ?? '').toLowerCase();
 
 const ProductCard = ({ product }) => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
-  const addItem         = useCartStore(s => s.addItem);
-  const cartQty         = useCartStore(s => (s.draftItems[selectedTableId] ?? EMPTY_DRAFT).find(i => i.menuItemId === product.id)?.quantity ?? 0);
+  const addItem = useCartStore(s => s.addItem);
+  const cartQty = useCartStore(s => (s.draftItems[selectedTableId] ?? EMPTY_DRAFT).find(i => i.menuItemId === product.id)?.quantity ?? 0);
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleAdd = () => {
@@ -56,7 +56,7 @@ const ProductCard = ({ product }) => {
           className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
           loading="lazy"
         />
-        
+
         {cartQty > 0 && (
           <div className="absolute top-4 left-4 bg-gold-600 text-white text-[12px] font-black w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-gold-600/40 animate-in zoom-in duration-300">
             {cartQty}
@@ -84,7 +84,7 @@ const ProductCard = ({ product }) => {
             {product.name}
           </h4>
         </div>
-        
+
         <div className="flex items-center justify-between pt-3 border-t border-gray-50">
           <p className="font-black text-gray-900 text-base tabular-nums">{formatVND(product.price)}</p>
           <div className="flex items-center gap-1 text-[10px] font-extrabold text-gray-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
@@ -97,13 +97,13 @@ const ProductCard = ({ product }) => {
 };
 
 export const MenuGrid = () => {
-  const menuItems   = usePosStore(s => s.menuItems);
-  const categories  = usePosStore(s => s.categories);
+  const menuItems = usePosStore(s => s.menuItems);
+  const categories = usePosStore(s => s.categories);
   const menuLoading = usePosStore(s => s.menuLoading);
-  
+
   const [activeCategoryId, setActiveCategoryId] = useState('all');
-  const [searchInput, setSearchInput]           = useState('');
-  const [debouncedSearch, setDebouncedSearch]   = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);

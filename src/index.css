@@ -110,19 +110,36 @@ body {
 
 /* Data Table Styles (Clean & High Contrast) */
 .data-table-container {
-  @apply overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm;
+  overflow: hidden;
+  border-radius: 1rem; /* rounded-2xl */
+  border: 1px solid #f3f4f6; /* gray-100 */
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
 }
 
 .data-table th {
-  @apply py-4 px-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50;
+  padding: 1rem 1.5rem; /* py-4 px-6 */
+  text-align: left;
+  font-size: 10px;
+  font-weight: 900; /* font-black */
+  color: #9ca3af; /* text-gray-400 */
+  text-transform: uppercase;
+  letter-spacing: 0.1em; /* tracking-widest */
+  background-color: rgba(249, 250, 251, 0.5); /* bg-gray-50/50 */
 }
 
 .data-table td {
-  @apply py-4 px-6 text-sm text-gray-800 border-t border-gray-50;
+  padding: 1rem 1.5rem; /* py-4 px-6 */
+  font-size: 0.875rem; /* text-sm */
+  color: #1f2937; /* text-gray-800 */
+  border-top: 1px solid #f9fafb; /* border-gray-50 */
 }
 
 .data-table tr:hover {
-  @apply bg-gold-50/20 transition-colors;
+  background-color: rgba(254, 252, 232, 0.2); /* bg-gold-50/20 */
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
 
 /* Common Text Utilities */
