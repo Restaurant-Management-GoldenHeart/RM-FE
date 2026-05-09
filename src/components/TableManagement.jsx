@@ -92,7 +92,7 @@ const TableCard = ({ table, isSelected, isMergeMode, mergeSelection, onToggleMer
     <div
       onClick={handleClick}
       className={cn(
-        'relative p-5 rounded-3xl border-2 transition-all duration-300 overflow-hidden select-none group',
+        'relative p-3 md:p-5 rounded-2xl md:rounded-3xl border-2 transition-all duration-300 select-none group',
         config.card,
         // Highlight khi đang được chọn để xem order
         isSelected && !isMergeMode && !isDisabled && 'border-gold-500 shadow-xl ring-4 ring-gold-500/5 bg-gold-50/5',
@@ -102,75 +102,62 @@ const TableCard = ({ table, isSelected, isMergeMode, mergeSelection, onToggleMer
     >
       {/* Badge: Bàn ảo (Bàn chính của nhóm gộp) */}
       {table.isVirtual && (
-        <span className="absolute top-2 left-2 text-[9px] font-black text-blue-600 px-1.5 py-0.5 bg-blue-100 rounded-lg leading-none">
+        <span className="absolute top-1 left-1 md:top-2 md:left-2 text-[8px] md:text-[9px] font-black text-blue-600 px-1.5 py-0.5 bg-blue-100 rounded-lg leading-none">
           *Gộp
         </span>
       )}
 
       {/* Checkbox khi ở chế độ Merge Mode */}
       {isMergeMode && !isDisabled && (
-        <label className="absolute top-4 right-4 flex items-center cursor-pointer z-10" onClick={e => e.stopPropagation()}>
+        <label className="absolute top-2 right-2 md:top-4 md:right-4 flex items-center cursor-pointer z-10" onClick={e => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={isMergeChecked}
             onChange={() => onToggleMerge(table.id)}
-            className="w-5 h-5 cursor-pointer accent-blue-600 rounded border-2 border-gray-300"
+            className="w-4 h-4 md:w-5 md:h-5 cursor-pointer accent-blue-600 rounded border-2 border-gray-300"
           />
         </label>
       )}
 
       {/* Header: Badge trạng thái + Nút cài đặt */}
-      <div className="flex items-center justify-between mb-3 mt-1">
+      <div className="flex items-center justify-between mb-2 md:mb-3 mt-1">
         <div className={cn(
-          'flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider',
+          'flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-0.5 rounded-lg border text-[8px] md:text-[9px] font-black uppercase tracking-wider',
           config.badge
         )}>
-          <div className={cn('w-1.5 h-1.5 rounded-full', config.dot, config.pulse && !isDisabled && 'animate-pulse')} />
-          {/* Bàn con gộp: hiện tên bàn chính */}
-          {table.isMerged && table.mainTableId
-            ? `Đã gộp`
-            : config.label
-          }
+          <div className={cn('w-1 md:w-1.5 h-1 md:h-1.5 rounded-full', config.dot, config.pulse && !isDisabled && 'animate-pulse')} />
+          <span className="truncate max-w-[40px] sm:max-w-none">
+            {table.isMerged && table.mainTableId ? `Đã gộp` : config.label}
+          </span>
         </div>
 
-        {/* Nút cài đặt — chỉ hiện khi không phải bàn con, không ở chế độ Merge Mode */}
         {!isDisabled && !isMergeMode && (
           <button
             onClick={(e) => { e.stopPropagation(); onAction(table); }}
             className={cn(
-              'p-1.5 bg-gray-50 text-gray-400 hover:bg-gold-600 hover:text-white rounded-lg transition-all',
-              // Bàn RESERVED: Luôn hiện gear icon rõ ràng (vì click vào card cũng mở modal rồi)
-              // Bàn khác: ẩn cho đến khi hover
-              table.status === 'RESERVED' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              'absolute top-2 right-2 md:top-3 md:right-3 p-1.5 md:p-2 bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 text-gray-400 hover:bg-gold-600 hover:text-white hover:border-gold-500 rounded-xl transition-all z-20 opacity-100'
             )}
           >
-            <Settings size={14} />
+            <Settings size={14} className="md:w-4 md:h-4" />
           </button>
         )}
       </div>
 
       {/* Tên bàn */}
       <h3 className={cn(
-        'font-black tracking-tight transition-colors flex items-center gap-2',
-        // Bàn ảo có thể có tên dài hơn → font nhỏ hơn
-        table.isVirtual ? 'text-base' : 'text-xl',
+        'font-black tracking-tight transition-colors flex items-center gap-1 md:gap-2',
+        table.isVirtual ? 'text-sm md:text-base' : 'text-lg md:text-xl',
         isMergeChecked ? 'text-blue-600' : isSelected && !isDisabled ? 'text-gold-600' : 'text-gray-900'
       )}>
         {table.tableNumber}
-        {/* Icon liên kết cho bàn con */}
-        {table.isMerged && <Link size={12} className="text-gray-400 shrink-0" />}
+        {table.isMerged && <Link size={10} className="text-gray-400 shrink-0 md:w-[12px] md:h-[12px]" />}
       </h3>
 
       {/* Sức chứa */}
-      <div className="flex items-center gap-1.5 mt-2">
-        <Users size={12} className={isDisabled ? 'text-gray-300' : 'text-gray-400'} />
-        <span className="text-[10px] font-black text-gray-400 uppercase">{table.capacity} chỗ</span>
+      <div className="flex items-center gap-1 md:gap-1.5 mt-1.5 md:mt-2">
+        <Users size={10} className={cn('md:w-[12px] md:h-[12px]', isDisabled ? 'text-gray-300' : 'text-gray-400')} />
+        <span className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase">{table.capacity} chỗ</span>
       </div>
-
-      {/* Ribbon góc trên phải khi đang được chọn */}
-      {isSelected && !isMergeMode && !isDisabled && (
-        <div className="absolute top-0 right-1 w-6 h-6 bg-gold-600 rotate-45 translate-x-3 -translate-y-3 shadow-lg" />
-      )}
     </div>
   );
 };
@@ -605,15 +592,15 @@ export const TableList = ({ selectedTableId, onTableSelect }) => {
       </div>
 
       {/* Grid bàn */}
-      <div className="flex-1 overflow-y-auto p-4 no-scrollbar pb-24">
+      <div className="flex-1 overflow-y-auto p-3 md:p-4 no-scrollbar pb-24">
         {loading
           ? (
-            <div className="grid grid-cols-2 gap-3">
-              {Array(8).fill(0).map((_, i) => <div key={i} className="h-28 bg-gray-50 rounded-2xl animate-pulse" />)}
+            <div className="grid grid-cols-2 xl:grid-cols-2 gap-3">
+              {Array(8).fill(0).map((_, i) => <div key={i} className="h-24 md:h-28 bg-gray-50 rounded-2xl animate-pulse" />)}
             </div>
           )
           : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 xl:grid-cols-2 gap-3">
               {filtered.map(t => (
                 <TableCard
                   key={t.id}
