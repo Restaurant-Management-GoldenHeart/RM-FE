@@ -47,6 +47,16 @@ export default function MainLayout() {
     return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
   }, [navigate]);
 
+  const { pathname } = window.location;
+  const isPos = pathname === '/pos';
+
+  // Tự động thu gọn sidebar khi vào POS
+  useEffect(() => {
+    if (isPos) {
+      setCollapsed(true);
+    }
+  }, [isPos]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -73,7 +83,7 @@ export default function MainLayout() {
       >
         <Header />
         <main className="flex-1 w-full overflow-x-hidden overflow-y-auto relative" id="main-scroll-container">
-          <div className="px-4 pt-4 pb-24 md:p-6 md:pb-6 w-full max-w-full">
+          <div className={`${isPos ? 'p-0 h-full' : 'px-4 pt-4 pb-24 md:p-6 md:pb-6'} w-full max-w-full`}>
             <Outlet />
           </div>
         </main>

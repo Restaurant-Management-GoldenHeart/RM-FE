@@ -132,23 +132,23 @@ export default function Sidebar({ collapsed, onToggle }) {
 
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2">
         {visibleItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             title={collapsed ? label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 group
+              `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group
               ${isActive
-                ? 'bg-gold-50 text-gold-700 font-semibold border border-gold-100 shadow-sm'
-                : 'text-gray-500 hover:text-gold-600 hover:bg-gray-50 border border-transparent'
+                ? 'bg-gray-900 text-white font-semibold shadow-md'
+                : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'
               }
               ${collapsed ? 'justify-center' : ''}`
             }
           >
-            <Icon className={`w-4.5 h-4.5 flex-shrink-0 transition-transform group-hover:scale-110 ${collapsed ? '' : ''}`} />
-            {!collapsed && <span className="text-sm">{label}</span>}
+            <Icon size={18} className="flex-shrink-0" />
+            {!collapsed && <span className="text-[13px]">{label}</span>}
           </NavLink>
         ))}
       </nav>
