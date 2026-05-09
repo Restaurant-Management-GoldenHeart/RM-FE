@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTableStore } from '../../store/useTableStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useKitchenStore } from '../../store/useKitchenStore';
-import { useAuthStore } from '../../store/useAuthStore';
 import paymentApi from '../../services/api/paymentApi';
 import tableApi from '../../services/api/tableApi';
 import { cn } from '../../utils/cn';
@@ -12,7 +11,6 @@ import {
   Percent, DollarSign, Gift, ChevronRight, ShoppingBag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { customerTierApi } from '../../api/customerTierApi';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
@@ -31,28 +29,8 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const [applyLoyalty, setApplyLoyalty] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [_tiers, setTiers] = useState([]);
 
-  const fetchTiers = async () => {
-    try {
-      const apiResponse = await customerTierApi.getCustomerTiers();
-      const rawTiers = apiResponse?.data ?? [];
-      const sortedTiers = Array.isArray(rawTiers)
-        ? [...rawTiers].sort((a, b) => (a.minPoints ?? 0) - (b.minPoints ?? 0))
-        : [];
-      setTiers(sortedTiers);
-    } catch (err) {
-      console.error('[PaymentModal] fetchTiers error:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchTiers();
-    }
-  }, [isOpen]);
-
-  const fetchPreview = async () => {
+  const fetchPreview = useCallback(async () => {
     if (!order?.id || !isOpen) return;
     setIsPreviewLoading(true);
     try {
@@ -70,11 +48,11 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     } finally {
       setIsPreviewLoading(false);
     }
-  };
+  }, [applyLoyalty, discount, isOpen, order?.id, taxRate]);
 
   useEffect(() => {
-    if (isOpen) fetchPreview();
-  }, [isOpen, discount, taxRate, applyLoyalty, order?.id, order?.customer?.id]);
+    fetchPreview();
+  }, [fetchPreview]);
 
   useEffect(() => {
     if (isOpen) {
@@ -160,8 +138,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       tableStore.setCurrentOrderTarget({ type: null, id: null, name: null });
       tableStore.setSelectedTableId(null);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      await tableStore.fetchTables(branchId);
+      await tableStore.fetchTables();
       onClose();
     } catch (error) {
       console.error('Payment error', error);
