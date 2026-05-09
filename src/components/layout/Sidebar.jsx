@@ -16,13 +16,14 @@ import {
   Menu,
   X,
   Package,
+  LayoutGrid,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const NAV_ITEMS = [
   {
     to: '/dashboard',
-    label: 'Dashboard',
+    label: 'Tổng quan',
     icon: LayoutDashboard,
     roles: ['ADMIN', 'MANAGER'],
   },
@@ -37,6 +38,12 @@ const NAV_ITEMS = [
     label: 'Khách hàng',
     icon: UserCircle,
     roles: ['ADMIN', 'MANAGER'],
+  },
+  {
+    to: '/table-map',
+    label: 'Sơ đồ bàn',
+    icon: LayoutGrid,
+    roles: ['ADMIN', 'MANAGER', 'STAFF'],
   },
   {
     to: '/menu',

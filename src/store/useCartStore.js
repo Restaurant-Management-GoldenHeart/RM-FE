@@ -284,7 +284,8 @@ export const useCartStore = create((set, get) => ({
 
     const { useTableStore } = await import('./useTableStore');
     const tableState = useTableStore.getState();
-    const table = tableState.tables.find(t => t.id === tableId);
+    const table = tableState.tables.find(t => t.id === tableId)
+               || tableState.takeawayOrders.find(o => o.id === tableId);
 
     // Chặn nếu bàn TRỐNG VÀ chưa được chọn (chưa mở bàn)
     // KHÔNG chặn bàn RESERVED — khách đã check-in, nhân viên được phép thêm món
@@ -293,7 +294,7 @@ export const useCartStore = create((set, get) => ({
       toast.error('⚠️ Hãy mở bàn để chọn món!');
       return;
     }
-    // Chặn các trạng thái không hợp lệ (CLEANING, MERGED, v.v.)
+    // Chặn các trạng thái không hợp lệ (DIRTY, MERGED, v.v.)
     if (table && !['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(table.status)) {
       toast.error('⚠️ Bàn này hiện không thể gọi món!');
       return;
@@ -735,8 +736,11 @@ export const useCartStore = create((set, get) => ({
       }));
 
       // Gọi API: POST /api/v1/orders
+      // Nếu tableId là chuỗi (MV1, MV2...) -> gửi null để BE hiểu là Mang về
+      const beTableId = typeof tableId === 'number' ? tableId : null;
+
       const response = await orderApi.createOrAppendOrder({
-        tableId,
+        tableId: beTableId,
         branchId,
         items: beItems,
       });
@@ -752,8 +756,16 @@ export const useCartStore = create((set, get) => ({
       }
 
       // Cập nhật table store để lấy currentOrderId mới nhất
-      await useTableStore.getState().fetchTables(branchId);
-      useTableStore.getState().selectTable(tableId);
+      if (typeof tableId === 'number') {
+        await useTableStore.getState().fetchTables(branchId);
+        useTableStore.getState().selectTable(tableId);
+      } else {
+        // Takeaway: cập nhật trực tiếp vào slot
+        useTableStore.getState().updateTakeawayLocal(tableId, { 
+          orderId: updatedOrder?.id,
+          status: 'OCCUPIED'
+        });
+      }
 
       // Xóa draft và cờ thiếu hàng sau khi gửi thành công
       set(state => {

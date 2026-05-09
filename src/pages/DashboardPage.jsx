@@ -7,8 +7,11 @@ import {
   Users, UtensilsCrossed, UserCircle, TrendingUp,
   ArrowRight, ChefHat, ShoppingCart, Calendar,
   Clock, Activity, Package, AlertCircle, AlertTriangle,
-  RefreshCw, Loader2, Store
+  RefreshCw, Loader2, Store,
+  BarChart3
 } from 'lucide-react';
+import AdminDashboard from '../components/AdminDashboard';
+import BillHistorySection from '../components/dashboard/BillHistorySection';
 
 /**
  * Skeleton — Placeholder loading effect
@@ -69,29 +72,7 @@ function StatCard({ icon: Icon, label, value, sub, color, to, loading, error }) 
   );
 }
 
-/**
- * QuickAction — Navigation shortcut button
- */
-function QuickAction({ label, to, Icon, desc }) {
-  const navigate = useNavigate();
-  return (
-    <button
-      onClick={() => navigate(to)}
-      className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-600/5 transition-all group text-left w-full"
-    >
-      <div className="w-12 h-12 rounded-xl bg-gold-50 flex items-center justify-center flex-shrink-0 group-hover:bg-gold-600 group-hover:text-white transition-all duration-300">
-        <Icon className="w-6 h-6 text-gold-600 group-hover:text-white transition-colors" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-gray-900 font-bold text-base">{label}</p>
-        <p className="text-gray-500 text-xs mt-1 leading-relaxed">{desc}</p>
-      </div>
-      <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center text-gray-300 group-hover:border-gold-200 group-hover:text-gold-600 transition-all">
-        <ArrowRight className="w-4 h-4" />
-      </div>
-    </button>
-  );
-}
+
 
 const ROLE_CONFIG = {
   ADMIN: { label: 'Quản trị viên', color: 'bg-gold-100 text-gold-700 border-gold-200' },
@@ -102,7 +83,7 @@ const ROLE_CONFIG = {
 
 export default function DashboardPage() {
   const { user, role } = useAuthStore();
-  const { buildApiParams, selectedBranchName, isAllBranches, isInitialized } = useBranchContext();
+  const { selectedBranchId, buildApiParams, selectedBranchName, isAllBranches, isInitialized } = useBranchContext();
   const isMounted = useRef(true);
   const isFetching = useRef(false);
   
@@ -139,7 +120,7 @@ export default function DashboardPage() {
     setErrors({ employees: false, customers: false, menuItems: false, inventoryItems: false });
 
     try {
-      const res = await reportApi.getDashboardReport(buildApiParams());
+      const res = await reportApi.getDashboardReport(selectedBranchId);
 
       if (!isMounted.current) return;
 
@@ -162,13 +143,13 @@ export default function DashboardPage() {
         setRefreshing(false);
       }
     }
-  }, [buildApiParams, isInitialized]);
+  }, [selectedBranchId, isInitialized]);
 
   useEffect(() => {
     isMounted.current = true;
     fetchStats();
     return () => { isMounted.current = false; };
-  }, [fetchStats]);
+  }, [fetchStats, selectedBranchId]);
 
   const allFailed = useMemo(() => 
     Object.values(errors).every(e => e) && !Object.values(loading).some(l => l),
@@ -186,6 +167,15 @@ export default function DashboardPage() {
     month: 'long', 
     year: 'numeric'
   });
+
+  // Clean branch name
+  const cleanBranchName = (name) => {
+    if (!name) return "Tất cả chi nhánh";
+    if (name.includes('|') || name.includes('¡')) {
+      return name.replace(/[|¡]/g, '').trim();
+    }
+    return name;
+  };
 
   return (
     <div className="space-y-10 animate-fade-in max-w-7xl mx-auto pb-10">
@@ -212,9 +202,9 @@ export default function DashboardPage() {
               <Clock className="w-4 h-4 text-gray-400 shrink-0" />
               <span>Phiên làm việc</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs md:text-sm font-bold border border-amber-200 truncate max-w-full">
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs md:text-sm font-bold border border-amber-200 truncate max-w-full shadow-sm">
               <Store className="w-4 h-4 shrink-0" />
-              <span className="truncate">CN: {selectedBranchName}</span>
+              <span className="truncate">Chi nhánh: {cleanBranchName(selectedBranchName)}</span>
             </div>
           </div>
         </div>
@@ -286,59 +276,23 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ── Navigation Actions ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Quản trị hệ thống</h2>
-            <button className="text-sm font-bold text-gold-600 hover:underline">Xem tất cả</button>
+      {/* ── Analytics & Charts ── */}
+      <div className="space-y-6 pt-6 border-t border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <BarChart3 className="w-6 h-6" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <QuickAction 
-              label="Quản lý Nhân viên" to="/employees" Icon={Users} 
-              desc="Theo dõi chấm công, thông tin cá nhân và hiệu suất làm việc."
-            />
-            <QuickAction 
-              label="Danh sách Khách hàng" to="/customers" Icon={UserCircle} 
-              desc="Quản lý điểm tích lũy, hạng thành viên và lịch sử đặt bàn."
-            />
-            <QuickAction 
-              label="Quản lý Thực đơn" to="/menu" Icon={UtensilsCrossed} 
-              desc="Cập nhật món mới, giá bán và trạng thái món ăn trong bếp."
-            />
-            <QuickAction 
-              label="Hồ sơ cá nhân" to="/profile" Icon={ChefHat} 
-              desc="Thay đổi mật khẩu, thông tin liên hệ và cài đặt cá nhân."
-            />
-          </div>
+          <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Phân tích & Báo cáo</h2>
         </div>
+        
+        <div className="rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-sm bg-white">
+          <AdminDashboard />
+        </div>
+      </div>
 
-        <div className="space-y-6">
-          <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Sức khỏe hệ thống</h2>
-          <div className="premium-card p-6 space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-800">Cơ sở dữ liệu</p>
-                <p className="text-xs text-gray-500 mt-0.5">Kết nối ổn định (Latency: 12ms)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 border-t border-gray-50 pt-6">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-800">Máy chủ API</p>
-                <p className="text-xs text-gray-500 mt-0.5">Uptime: 99.98% (Online)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 border-t border-gray-50 pt-6">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-gray-800">Bảo mật JWT</p>
-                <p className="text-xs text-gray-500 mt-0.5">Cấu hình refresh token an toàn</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* ── Recent Invoice History ── */}
+      <div className="pt-6 border-t border-gray-100">
+        <BillHistorySection />
       </div>
     </div>
   );

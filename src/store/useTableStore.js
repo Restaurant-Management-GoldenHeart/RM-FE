@@ -12,7 +12,6 @@ import toast from 'react-hot-toast';
 import tableApi from '../services/api/tableApi';
 import { mapTables } from '../services/mapper/tableMapper';
 import { useAuthStore } from './useAuthStore';
-import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 let _activeOrderAbortController = null;
 let _activeOrderRequestId = 0;
@@ -25,14 +24,20 @@ const getVirtualTables = () => {
   } catch { return []; }
 };
 
+// Helper: Quản lý Lazy Opened Tables (Bàn đã mở nhưng chưa có đơn)
+const getLazyOpenedTables = () => {
+  try {
+    const stored = localStorage.getItem('goldenheart_lazy_tables');
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+};
+
 const setVirtualTables = (data) => {
   localStorage.setItem('goldenheart_virtual_tables', JSON.stringify(data));
 };
 
-const resolveActionableTableId = (table) => {
-  if (!table) return null;
-  if (table.isMerged && table.mainTableId) return table.mainTableId;
-  return table.id;
+const setLazyOpenedTables = (data) => {
+  localStorage.setItem('goldenheart_lazy_tables', JSON.stringify(data));
 };
 
 export const useTableStore = create((set, get) => ({
@@ -41,6 +46,7 @@ export const useTableStore = create((set, get) => ({
 
   tables: [],
   virtualTables: getVirtualTables(),
+  lazyOpenedTableIds: getLazyOpenedTables(),
   loading: false,
   error: null,
   selectedTableId: null,
@@ -49,7 +55,39 @@ export const useTableStore = create((set, get) => ({
   splitTransactions: {}, // { txId: { status, fromTableId, toTableId, bridgeTableId, steps } }
   lockedTableIds: [],    // Mảng ID các bàn đang bị khoá bởi transaction
 
+  // ─── Takeaway & Area State ────────────────────────────────────────────────
+  areas: [{ id: 'ALL', name: 'Tất cả' }],
+  takeawayOrders: [
+    { id: 'MV1', order_number: 'MV-01', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+    { id: 'MV2', order_number: 'MV-02', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+    { id: 'MV3', order_number: 'MV-03', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+    { id: 'MV4', order_number: 'MV-04', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+    { id: 'MV5', order_number: 'MV-05', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+    { id: 'MV6', order_number: 'MV-06', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+  ],
+  currentOrderTarget: { type: null, id: null, name: null },
+
   // ─── Actions ──────────────────────────────────────────────────────────────
+
+  setCurrentOrderTarget: (target) => set({ currentOrderTarget: target }),
+
+  /** Simple setter — dùng cho TAKEAWAY, không trigger getActiveOrder */
+  setSelectedTableId: (id) => set({ selectedTableId: id }),
+
+  fetchAreas: async (branchId) => {
+    try {
+      const { areaApi } = await import('../api/posApi');
+      const authUser = useAuthStore.getState()?.user;
+      const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
+      const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
+      
+      const res = await areaApi.getAreas(resolvedBranchId);
+      const fetchedAreas = Array.isArray(res) ? res : (res?.data || []);
+      set({ areas: [{ id: 'ALL', name: 'Tất cả' }, ...fetchedAreas] });
+    } catch (err) {
+      console.error('Fetch Areas Error:', err);
+    }
+  },
 
   /**
    * fetchTables — Tải danh sách bàn + Map Virtual Tables & Proxy Logic.
@@ -58,29 +96,74 @@ export const useTableStore = create((set, get) => ({
     if (get().loading) return;
 
     const authUser = useAuthStore.getState()?.user;
-    const role = authUser?.role?.toUpperCase() ?? '';
-    const isAdminOrManager = role === 'ADMIN' || role === 'MANAGER';
-
-    // Resolve branchId: ưu tiên tham số truyền vào, sau đó lấy từ user profile
-    const resolvedBranchId = resolveBranchId(
-      branchId,
-      getPersistedBranchId(),
-      authUser?.branchId
-    );
-
-    // STAFF/KITCHEN phải có branchId hợp lệ mới cho fetch
-    // ADMIN/MANAGER có thể fetch null để lấy tất cả chi nhánh
-    if (!resolvedBranchId && !isAdminOrManager) {
-      console.warn('[fetchTables] Chưa có branchId, bỏ qua fetch.');
-      return;
-    }
+    const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
+    const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
 
     set({ loading: true, error: null });
 
     try {
+      // 1. Tải danh sách bàn
       const response = await tableApi.getTables(resolvedBranchId);
       let rawTables = response?.data ?? [];
       let mappedTables = mapTables(rawTables);
+
+      // 2. Tải danh sách món từ bếp để "Self-healing" đơn mang về
+      let takeawayFromBE = [];
+      try {
+        const { kitchenServiceApi } = await import('../services/api/kitchenServiceApi');
+        const kitchenRes = await kitchenServiceApi.getPendingItems(resolvedBranchId);
+        const kitchenItems = kitchenRes?.data || [];
+        
+        // Tìm các orderId của đơn mang về (tableName null hoặc chứa "Mang về")
+        const takeawayOrderIds = [...new Set(kitchenItems
+          .filter(item => !item.tableName || item.tableName.includes('Mang về'))
+          .map(item => item.orderId)
+        )];
+        
+        takeawayFromBE = takeawayOrderIds.map(id => ({
+          orderId: id,
+          status: 'OCCUPIED', // Nếu có món ở bếp thì chắc chắn là OCCUPIED
+          customerName: 'Khách mang về'
+        }));
+      } catch (kErr) {
+        console.warn('[Self-Healing] Không thể lấy dữ liệu bếp:', kErr);
+      }
+
+      // 3. Đồng bộ Takeaway theo chi nhánh + Self-healing
+      if (resolvedBranchId) {
+        const takeawayKey = `goldenheart_takeaway_data_br${resolvedBranchId}`;
+        const storedTakeaway = localStorage.getItem(takeawayKey);
+        let currentTakeaway = storedTakeaway 
+          ? JSON.parse(storedTakeaway) 
+          : [
+              { id: 'MV1', order_number: 'MV-01', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+              { id: 'MV2', order_number: 'MV-02', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+              { id: 'MV3', order_number: 'MV-03', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+              { id: 'MV4', order_number: 'MV-04', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+              { id: 'MV5', order_number: 'MV-05', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+              { id: 'MV6', order_number: 'MV-06', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
+            ];
+
+        // LOGIC SELF-HEALING: 
+        // Duyệt qua các đơn từ BE, nếu chưa có trong currentTakeaway thì đắp vào ô trống
+        takeawayFromBE.forEach(beOrder => {
+          const exists = currentTakeaway.some(slot => slot.orderId === beOrder.orderId);
+          if (!exists) {
+            const emptySlotIndex = currentTakeaway.findIndex(slot => !slot.orderId || slot.status === 'AVAILABLE');
+            if (emptySlotIndex !== -1) {
+              currentTakeaway[emptySlotIndex] = {
+                ...currentTakeaway[emptySlotIndex],
+                orderId: beOrder.orderId,
+                status: 'OCCUPIED',
+                customerName: beOrder.customerName
+              };
+            }
+          }
+        });
+
+        set({ takeawayOrders: currentTakeaway });
+        localStorage.setItem(takeawayKey, JSON.stringify(currentTakeaway));
+      }
 
       // ========== SELF-HEALING MECHANISM ==========
       let vTables = getVirtualTables();
@@ -89,7 +172,7 @@ export const useTableStore = create((set, get) => ({
       // Kiểm tra nếu mainTable không còn OCCUPIED hoặc RESERVED (VD: Đã thanh toán -> CLEANING/AVAILABLE)
       for (const vt of vTables) {
         const mainTable = mappedTables.find(t => t.id === vt.mainTableId);
-        // Nếu mainTable không tồn tại hoặc trạng thái là CLEANING / AVAILABLE -> Tách tự động
+        // Nếu mainTable không tồn tại hoặc trạng thái là DIRTY / AVAILABLE -> Tách tự động
         if (mainTable && !['OCCUPIED', 'RESERVED'].includes(mainTable.status)) {
           console.log(`[Self-Healing] Tách bàn ${mainTable.tableNumber} tự động do trạng thái: ${mainTable.status}`);
 
@@ -99,7 +182,8 @@ export const useTableStore = create((set, get) => ({
           //
           // ✅ BE đã hỗ trợ RESERVED → CLEANING trực tiếp (sau khi cập nhật validateStatusTransition).
           // Không cần bước trung gian RESERVED → AVAILABLE → CLEANING nữa.
-          const targetStatus = mainTable.status === 'CLEANING' ? 'CLEANING' : 'AVAILABLE';
+          // Note: mainTable.status đã qua mapper nên là 'DIRTY', khi gửi BE dùng 'CLEANING'
+          const targetStatus = mainTable.status === 'DIRTY' ? 'CLEANING' : 'AVAILABLE';
 
           for (const childId of vt.childTableIds) {
             try {
@@ -154,19 +238,44 @@ export const useTableStore = create((set, get) => ({
           };
         }
 
-        if (table.merged && !table.mergeRoot && table.mergeRootTableId) {
-          return {
-            ...table,
-            status: 'MERGED',
-            isMerged: true,
-            mainTableId: table.mergeRootTableId
-          };
-        }
-
         return table;
       });
 
-      set({ tables: transformedTables, loading: false });
+      // ⚠️ Preserve currentOrderId từ store cũ cho các bàn vẫn còn OCCUPIED.
+      // BE không trả về currentOrderId trong GET /tables → nếu ghi đè thẳng sẽ mất tham chiếu đơn.
+      // Giải pháp: merge lại từ state hiện tại trước khi ghi vào store.
+      const existingTables = get().tables;
+      const lazyIds = get().lazyOpenedTableIds;
+      
+      const finalTables = transformedTables.map(newTable => {
+        // Nếu bàn nằm trong danh sách Lazy Open -> Ép trạng thái OCCUPIED
+        if (lazyIds.includes(newTable.id) && newTable.status === 'AVAILABLE') {
+          return { ...newTable, status: 'OCCUPIED', currentOrderId: null };
+        }
+
+        if (newTable.status === 'OCCUPIED' && !newTable.currentOrderId) {
+          const existing = existingTables.find(t => t.id === newTable.id);
+          if (existing?.currentOrderId) {
+            // Nếu bàn đã có đơn thật -> Xoá khỏi danh sách Lazy
+            const newLazy = get().lazyOpenedTableIds.filter(id => id !== newTable.id);
+            set({ lazyOpenedTableIds: newLazy });
+            setLazyOpenedTables(newLazy);
+            return { ...newTable, currentOrderId: existing.currentOrderId };
+          }
+        }
+
+        // Nếu bàn không còn AVAILABLE (ví dụ BE báo đã dọn xong hoặc có người khác vào) 
+        // -> Xoá khỏi danh sách Lazy
+        if (newTable.status !== 'AVAILABLE' && lazyIds.includes(newTable.id)) {
+           const newLazy = get().lazyOpenedTableIds.filter(id => id !== newTable.id);
+           set({ lazyOpenedTableIds: newLazy });
+           setLazyOpenedTables(newLazy);
+        }
+
+        return newTable;
+      });
+
+      set({ tables: finalTables, loading: false });
     } catch (err) {
       console.error('[API_ERROR][TABLES]', err);
       set({ loading: false, error: err?.message || 'Không tải được danh sách bàn' });
@@ -195,20 +304,34 @@ export const useTableStore = create((set, get) => ({
     set({ selectedTableId: targetId });
     const table = get().tables.find(t => t.id === targetId);
     
-    // Lazy load useOrderStore để tránh circular dependency
+    // Lazy load stores to avoid circular dependencies
     const { useOrderStore } = await import('./useOrderStore');
     
     if (table?.status === 'OCCUPIED') {
-      const currentReqId = ++_activeOrderRequestId;
-      
-      if (_activeOrderAbortController) {
-        _activeOrderAbortController.abort();
+      if (!table.currentOrderId) {
+        // CASE: LAZY OPENED TABLE (Ghost Order)
+        useOrderStore.setState({ 
+          order: { 
+            id: null, 
+            tableId: targetId, 
+            tableNumber: table.tableNumber,
+            status: 'PENDING',
+            orderItems: [] 
+          },
+          loadingOrder: false 
+        });
+        return;
       }
+
+      // CASE: REAL ORDER ON BE
+      const currentReqId = ++_activeOrderRequestId;
+      if (_activeOrderAbortController) _activeOrderAbortController.abort();
       _activeOrderAbortController = new AbortController();
 
       useOrderStore.setState({ loadingOrder: true });
 
       try {
+        const { tableApi } = await import('../services/api/tableApi');
         const response = await tableApi.getActiveOrder(targetId, { 
           signal: _activeOrderAbortController.signal 
         });
@@ -227,7 +350,7 @@ export const useTableStore = create((set, get) => ({
           useOrderStore.setState({ loadingOrder: false });
         }
       } catch (err) {
-        if (err.isCancelled) return;
+        if (err.isCancelled || err.name === 'AbortError') return;
         if (currentReqId !== _activeOrderRequestId) return;
         
         console.error("[API_ERROR][ACTIVE_ORDER]", err);
@@ -349,7 +472,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 5️⃣ Đồng bộ lại UI từ Backend
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       
@@ -394,7 +517,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 3. Refetch
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
 
@@ -408,10 +531,8 @@ export const useTableStore = create((set, get) => ({
   },
 
   /**
-   * openTable — Mở bàn hoặc Check-in khách đặt trước.
-   * - AVAILABLE → Chọn bàn (local), order tạo khi gửi bếp.
-   * - RESERVED  → Chuyển sang OCCUPIED qua API, bắt đầu luồng phục vụ.
-   * ⚠️ BE constraint: @NotEmpty (Order phải có ít nhất 1 item).
+   * openTable — Mở bàn ngay, tạo Order rỗng (PENDING) trên BE.
+   * Bàn sẽ là OCCUPIED ngay sau khi gọi API → persist qua reload.
    */
   openTable: async (tableId) => {
     const table = get().tables.find(t => t.id === tableId);
@@ -422,9 +543,43 @@ export const useTableStore = create((set, get) => ({
       return false;
     }
 
+    // LOCAL ONLY - Lazy open.
+    // BE will create the order when the first item is sent to kitchen.
+    const newLazy = [...get().lazyOpenedTableIds, tableId];
+    set(state => ({
+      lazyOpenedTableIds: newLazy,
+      tables: state.tables.map(t =>
+        t.id === tableId ? { ...t, status: 'OCCUPIED', currentOrderId: null } : t
+      )
+    }));
+    setLazyOpenedTables(newLazy);
+
     get().selectTable(tableId);
-    toast.success('Bàn đã sẵn sàng. Vui lòng chọn món để gửi bếp.');
-    return true;
+    toast.success('Bàn đã được mở. Vui lòng chọn món.');
+    return { orderId: null, order: { id: null, tableNumber: table.tableNumber } };
+  },
+
+  /**
+   * cancelOrder — Hủy đơn hàng và giải phóng bàn về AVAILABLE.
+   * Dùng cho nút “Đóng bàn / Hủy nhầm” trong TableActionModal.
+   */
+  cancelOrder: async (orderId) => {
+    if (!orderId) {
+      toast.error('Không tìm thấy mã đơn hàng cần đóng');
+      return false;
+    }
+    try {
+      const { default: apiClient } = await import('../api/apiClient');
+      await apiClient.post(`/orders/${orderId}/cancel`);
+
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+      useTableStore.setState({ loading: false });
+      await get().fetchTables(branchId);
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Không thể đóng bàn';
+      throw new Error(msg);
+    }
   },
 
   /**
@@ -442,7 +597,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'AVAILABLE');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       toast.success(`Đã hủy đặt bàn ${table.tableNumber}.`);
@@ -463,7 +618,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'RESERVED');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
@@ -482,12 +637,10 @@ export const useTableStore = create((set, get) => ({
     const table = get().tables.find(t => t.id === tableId);
     if (!table) return false;
 
-    const actionableTableId = resolveActionableTableId(table);
-
     try {
-      await tableApi.updateTableStatus(actionableTableId, 'AVAILABLE');
+      await tableApi.updateTableStatus(tableId, 'AVAILABLE');
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId); 
       // fetchTables có chứa self-healing nên sẽ tự động tách bàn ảo nếu đang là bàn chính
@@ -514,7 +667,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.mergeTables(sourceTableId, targetTableId);
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(targetTableId);
@@ -541,7 +694,7 @@ export const useTableStore = create((set, get) => ({
 
       await tableApi.splitTable(sourceTableId, targetTableId, beItems);
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       useTableStore.setState({ loading: false });
       await get().fetchTables(branchId);
       get().selectTable(sourceTableId);
@@ -732,7 +885,7 @@ export const useTableStore = create((set, get) => ({
       get().unlockTable(toTableId);
       get().unlockTable(bridgeTable.id);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
       await get().fetchTables(branchId);
       
       // Auto focus lại bàn đang thao tác thay vì bàn đích
@@ -743,6 +896,13 @@ export const useTableStore = create((set, get) => ({
   },
 
   updateTableLocal: (tableId, patch) => {
+    // Nếu update sang AVAILABLE hoặc khác OCCUPIED -> Xoá khỏi Lazy
+    if (patch.status && patch.status !== 'OCCUPIED') {
+      const newLazy = get().lazyOpenedTableIds.filter(id => id !== tableId);
+      set({ lazyOpenedTableIds: newLazy });
+      setLazyOpenedTables(newLazy);
+    }
+
     set(state => ({
       tables: state.tables.map(t =>
         t.id === tableId ? { ...t, ...patch } : t
@@ -750,7 +910,88 @@ export const useTableStore = create((set, get) => ({
     }));
   },
 
-}));
+  updateTakeawayLocal: (slotId, patch) => {
+    const branchId = useAuthStore.getState()?.user?.branchId || 1;
+    set(state => {
+      const newOrders = state.takeawayOrders.map(o =>
+        o.id === slotId ? { ...o, ...patch } : o
+      );
+      localStorage.setItem(`goldenheart_takeaway_data_br${branchId}`, JSON.stringify(newOrders));
+      return { takeawayOrders: newOrders };
+    });
+  },
+
+  /**
+   * createTakeawayOrder — Mở ô mang về cục bộ.
+   * Backend order được tạo LAZY khi nhân viên "Gửi bếp" lần đầu (POST /orders với tableId=null).
+   */
+  createTakeawayOrder: async (slotId, customerName) => {
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+    set(state => ({
+      takeawayOrders: state.takeawayOrders.map(o =>
+        o.id === slotId
+          ? { ...o, status: 'OCCUPIED', customerName: customerName || 'Khách lẻ', time: timeStr, orderId: null }
+          : o
+      ),
+    }));
+
+    toast.success(`Đã mở ô ${slotId} — ${customerName || 'Khách lẻ'}`);
+    return {
+      orderId: null, // tạo thật khi gửi bếp
+      order: { id: null, tableNumber: 'Mang về', customerName: customerName || 'Khách lẻ' },
+    };
+  },
+
+  /**
+   * completeTakeawayOrder — Đóng ô mang về, reset về trạng thái AVAILABLE.
+   * Gọi sau khi thanh toán thành công.
+   */
+  completeTakeawayOrder: (slotId) => {
+    const branchId = useAuthStore.getState()?.user?.branchId || 1;
+    const newOrders = get().takeawayOrders.map(o =>
+      o.id === slotId
+        ? { id: o.id, order_number: o.order_number, customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null }
+        : o
+    );
+    set({ takeawayOrders: newOrders });
+    localStorage.setItem(`goldenheart_takeaway_data_br${branchId}`, JSON.stringify(newOrders));
+    toast.success('Đã đóng ô mang về');
+  },
+
+  /** Alias cho completeTakeawayOrder */
+  closeTakeawayOrder: (slotId) => get().completeTakeawayOrder(slotId),
+
+  /**
+   * updateTakeawayStatus — Cập nhật trạng thái bếp của ô mang về (OCCUPIED → COOKING → READY).
+   */
+  updateTakeawayStatus: (slotId, newStatus) => {
+    set(state => ({
+      takeawayOrders: state.takeawayOrders.map(o =>
+        o.id === slotId ? { ...o, status: newStatus } : o
+      ),
+    }));
+  },
+
+  /**
+   * deleteTable — Xóa bàn qua API rồi refresh danh sách.
+   */
+  deleteTable: async (tableId) => {
+    try {
+      await tableApi.deleteTable(tableId);
+      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
+      await get().fetchTables(branchId);
+      toast.success('Đã xóa bàn');
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Không thể xóa bàn';
+      toast.error(msg);
+      throw new Error(msg);
+    }
+  },
+
+}))
+;
 
 export const selectAvailableTables = state => state.tables.filter(t => t.status === 'AVAILABLE');
 export const selectOccupiedTables = state => state.tables.filter(t => t.status === 'OCCUPIED');

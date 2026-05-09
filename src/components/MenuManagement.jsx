@@ -39,7 +39,7 @@ const ProductCard = ({ product }) => {
     toast.success(
       <div className="flex flex-col">
         <span className="font-bold text-sm">Đã chọn {product.name}</span>
-        <span className="text-[11px] text-gray-500 font-medium">Đang chọn: {cartQty + 1}</span>
+        <span className="text-[11px] text-gray-500 font-medium">Số lượng: {cartQty + 1}</span>
       </div>, 
       {
         icon: '🛒',
