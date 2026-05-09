@@ -20,6 +20,7 @@ export default function FloorPlanView({
   const [internalArea, setInternalArea] = useState('ALL');
   const selectedArea = externalSelectedArea !== undefined ? externalSelectedArea : internalArea;
   const setSelectedArea = onAreaChange || setInternalArea;
+  const showAreaTabs = areas.length > 1;
 
   // Lọc theo khu vực
   const filteredTables = tables.filter(table => {
@@ -30,23 +31,24 @@ export default function FloorPlanView({
 
   return (
     <div className="flex flex-col w-full h-full bg-gray-50/50 overflow-hidden">
-      {/* Control Bar: Area Tabs */}
-      <div className="flex items-center gap-2 p-4 overflow-x-auto no-scrollbar shrink-0 bg-white/50 backdrop-blur-md border-b border-gray-100">
-        {areas.map(area => (
-          <button
-            key={area.id}
-            onClick={() => setSelectedArea(area.id)}
-            className={cn(
-              'px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 border',
-              selectedArea === area.id 
-                ? 'bg-amber-500 text-white border-amber-600 shadow-md' 
-                : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
-            )}
-          >
-            {area.name}
-          </button>
-        ))}
-      </div>
+      {showAreaTabs && (
+        <div className="flex items-center gap-2 p-4 overflow-x-auto no-scrollbar shrink-0 bg-white/50 backdrop-blur-md border-b border-gray-100">
+          {areas.map(area => (
+            <button
+              key={area.id}
+              onClick={() => setSelectedArea(area.id)}
+              className={cn(
+                'px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 border',
+                selectedArea === area.id 
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-md' 
+                  : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
+              )}
+            >
+              {area.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tables Container (Grid) */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-6">

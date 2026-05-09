@@ -231,15 +231,10 @@ const SentItemRow = ({ item, orderId }) => {
 export const CartPanel = () => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
   const tables = useTableStore(s => s.tables);
-  const takeawayOrders = useTableStore(s => s.takeawayOrders);
-
-  const table = useMemo(() => {
-    if (selectedTableId?.startsWith?.('MV')) {
-      const slot = takeawayOrders.find(o => o.id === selectedTableId);
-      return slot ? { ...slot, tableNumber: slot.order_number } : null;
-    }
-    return tables.find(t => t.id === selectedTableId);
-  }, [selectedTableId, tables, takeawayOrders]);
+  const table = useMemo(
+    () => tables.find(t => t.id === selectedTableId) ?? null,
+    [selectedTableId, tables]
+  );
 
   const draftItems = useCartStore(s => s.draftItems[selectedTableId] ?? EMPTY_DRAFT);
   const draftTotal = useMemo(() => draftItems.reduce((s, i) => s + i.price * i.quantity, 0), [draftItems]);

@@ -23,11 +23,8 @@ function MobileBranchPill({ role }) {
 
   const stripPrefix = (name) => {
     if (!name) return name;
-    // Fix common encoding issues (hotfix for mangled text from BE)
-    // let clean = name.replace(/Chi\nh?nh/g, 'Chi nhánh')
-    //                 .replace(/Qu?n/g, 'Quận')
-    //                 .replace(/TSS\s?\|\|\s?°?NG/g, 'Tầng');
-
+    
+    const clean = name;
     const idx = clean.indexOf(' - ');
     return idx !== -1 ? clean.slice(idx + 3) : clean;
   };

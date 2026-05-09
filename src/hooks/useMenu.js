@@ -14,6 +14,7 @@ import { useBranchContext } from '../context/BranchContext';
  */
 export function useMenu() {
   const queryClient = useQueryClient();
+  const { buildApiParams, selectedBranchId } = useBranchContext();
   
   // Local Filter & Pagination State
   const [keyword, setKeyword] = useState('');
@@ -45,16 +46,16 @@ export function useMenu() {
 
   // REAL INTEGRATION: Fetch ingredients from Inventory
   const ingredientsQuery = useQuery({
-    queryKey: ['inventoryIngredients'],
+    queryKey: ['inventoryIngredients', selectedBranchId],
     queryFn: async () => {
-      const res = await inventoryApi.getInventoryItems({ size: 100 });
+      const res = await inventoryApi.getInventoryItems({
+        ...buildApiParams(),
+        size: 100,
+      });
       return res.data?.content || [];
     },
     staleTime: 1000 * 60 * 5, // 5 mins
   });
-
-  // Context & Auth for Branch Filtering
-  const { buildApiParams, selectedBranchId } = useBranchContext();
 
   // 1. Fetch Menu Items
   const { 

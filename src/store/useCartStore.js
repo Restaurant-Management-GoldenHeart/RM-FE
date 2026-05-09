@@ -34,6 +34,7 @@ import orderApi from '../services/api/orderApi';
 import { mapOrder } from '../services/mapper/orderMapper';
 import { useOrderStore } from './useOrderStore';
 import { useAuthStore } from './useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 // ─── Hằng số ──────────────────────────────────────────────────────────────────
 
@@ -284,8 +285,7 @@ export const useCartStore = create((set, get) => ({
 
     const { useTableStore } = await import('./useTableStore');
     const tableState = useTableStore.getState();
-    const table = tableState.tables.find(t => t.id === tableId)
-               || tableState.takeawayOrders.find(o => o.id === tableId);
+    const table = tableState.tables.find(t => t.id === tableId);
 
     // Chặn nếu bàn TRỐNG VÀ chưa được chọn (chưa mở bàn)
     // KHÔNG chặn bàn RESERVED — khách đã check-in, nhân viên được phép thêm món
@@ -608,7 +608,16 @@ export const useCartStore = create((set, get) => ({
     });
 
     // ── Bước 3: Lấy dữ liệu tồn kho ─────────────────────────────────────
-    const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
+    const branchId = resolveBranchId(
+      getPersistedBranchId(),
+      useAuthStore.getState()?.user?.branchId
+    );
+
+    if (!branchId) {
+      toast.error('Không xác định được chi nhánh đang thao tác.');
+      set({ isCheckingStock: false });
+      return false;
+    }
     let inventoryData = null;
     let inventoryFailed = false;
 
@@ -737,10 +746,14 @@ export const useCartStore = create((set, get) => ({
 
       // Gọi API: POST /api/v1/orders
       // Nếu tableId là chuỗi (MV1, MV2...) -> gửi null để BE hiểu là Mang về
-      const beTableId = typeof tableId === 'number' ? tableId : null;
+      if (typeof tableId !== 'number') {
+        toast.error('Ban hien tai khong hop le de gui bep');
+        set({ isSending: false });
+        return false;
+      }
 
       const response = await orderApi.createOrAppendOrder({
-        tableId: beTableId,
+        tableId,
         branchId,
         items: beItems,
       });
@@ -756,10 +769,12 @@ export const useCartStore = create((set, get) => ({
       }
 
       // Cập nhật table store để lấy currentOrderId mới nhất
-      if (typeof tableId === 'number') {
+      await useTableStore.getState().fetchTables(branchId);
+      useTableStore.getState().selectTable(tableId);
+      if (false) {
         await useTableStore.getState().fetchTables(branchId);
         useTableStore.getState().selectTable(tableId);
-      } else {
+      } else if (false) {
         // Takeaway: cập nhật trực tiếp vào slot
         useTableStore.getState().updateTakeawayLocal(tableId, { 
           orderId: updatedOrder?.id,

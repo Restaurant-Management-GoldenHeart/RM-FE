@@ -1,72 +1,50 @@
-/**
- * StaffPosPage.jsx — Trang POS trung tâm cho nhân viên
- *
- * Nhiệm vụ:
- *   - Điều phối trạng thái chọn bàn giữa các component.
- *   - Khởi tạo dữ liệu ban đầu (Menu, Tables).
- *   - Hiển thị layout 3 cột: Bàn | Thực đơn | Giỏ hàng.
- *
- * Layout chuẩn:
- *   - Left (320px): Sơ đồ bàn
- *   - Center (flex-1): Danh sách món ăn
- *   - Right (420px): Chi tiết đơn hàng & Thanh toán
- */
 import React, { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { usePOSAdapter } from '../hooks/adapters/usePOSAdapter';
 import { useBranchContext } from '../context/BranchContext';
 import { TableList } from '../components/TableManagement';
 import { MenuGrid } from '../components/MenuManagement';
 import { CartPanel } from '../components/CartManagement';
-import { Loader2 } from 'lucide-react';
 
 const StaffPosPage = () => {
   const { selectedBranchId } = useBranchContext();
   const {
-    menuItems, menuLoading, tablesLoading, currentOrderTarget,
-    fetchInitialData, fetchTables, setCurrentOrderTarget,
-    selectTable, setSelectedTableId,
-    setOrder, refreshOrder
+    menuItems,
+    menuLoading,
+    tablesLoading,
+    currentOrderTarget,
+    fetchInitialData,
+    fetchTables,
+    setCurrentOrderTarget,
+    selectTable,
+    setOrder,
+    refreshOrder,
   } = usePOSAdapter();
 
   useEffect(() => {
-    // Tải dữ liệu ban đầu theo chi nhánh đã chọn
     fetchInitialData(selectedBranchId);
-    // fetchTables sẽ dùng branchId từ context
     fetchTables(selectedBranchId);
   }, [fetchInitialData, fetchTables, selectedBranchId]);
 
   const handleTableSelect = ({ table, orderId, order }) => {
-    const isTakeaway = table.tableNumber === 'Mang về';
-
-    // 1. Cập nhật target hiện tại
     setCurrentOrderTarget({
-      type: isTakeaway ? 'TAKEAWAY' : 'TABLE',
+      type: 'TABLE',
       id: table.id,
-      name: isTakeaway ? (table.customerName || `Đơn ${table.id}`) : `Bàn ${table.tableNumber}`
+      name: `Bàn ${table.tableNumber}`,
     });
 
-    if (isTakeaway) {
-      // Takeaway: không dùng selectTable vì ID dạng 'MV1' không phải real table
-      // Chỉ set selectedTableId vào store để CartStore dùng làm key
-      setSelectedTableId(table.id);
-      if (order) {
-        setOrder(order);
-      } else if (orderId) {
-        refreshOrder(orderId);
-      }
-    } else {
-      // Dìne-in: dùng selectTable bình thường (set selectedTableId + getActiveOrder từ BE)
-      selectTable(table.id);
-      if (order) {
-        setOrder(order);
-      }
+    selectTable(table.id);
+    if (order) {
+      setOrder(order);
+    } else if (orderId) {
+      refreshOrder(orderId);
     }
 
     const orderInfo = order?.id || orderId;
     console.log(`[POS] Selected Table: ${table.tableNumber}, Status: ${table.status}, OrderId: ${orderInfo || 'NONE'}`);
   };
 
-  const isLoading = (menuLoading || tablesLoading);
+  const isLoading = menuLoading || tablesLoading;
 
   if (isLoading && !menuItems.length) {
     return (
@@ -79,24 +57,20 @@ const StaffPosPage = () => {
 
   return (
     <div className="flex h-full bg-[#f8f9fa] text-[#111827] overflow-hidden font-sans">
-      {/* ── Main Layout ── */}
       <main className="flex-1 flex overflow-hidden p-6 gap-6">
-        {/* Left: Table Map (Fixed width) */}
         <div className="w-[340px] shrink-0">
-          <TableList 
-            currentOrderTarget={currentOrderTarget} 
-            onTableSelect={handleTableSelect} 
+          <TableList
+            currentOrderTarget={currentOrderTarget}
+            onTableSelect={handleTableSelect}
           />
         </div>
 
-        {/* Middle Panel — Menu */}
         <div className="flex-1 flex flex-col bg-white overflow-hidden shadow-sm border border-gray-100/50 rounded-2xl">
           <MenuGrid isPOSView={true} />
         </div>
 
-        {/* Right: Cart/Order (Fixed width) */}
         <div className="w-[440px] shrink-0">
-           <CartPanel />
+          <CartPanel />
         </div>
       </main>
     </div>

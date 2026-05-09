@@ -130,7 +130,7 @@ export const useTableStore = create((set, get) => ({
       }
 
       // 3. Đồng bộ Takeaway theo chi nhánh + Self-healing
-      if (resolvedBranchId) {
+      if (false && resolvedBranchId) {
         const takeawayKey = `goldenheart_takeaway_data_br${resolvedBranchId}`;
         const storedTakeaway = localStorage.getItem(takeawayKey);
         let currentTakeaway = storedTakeaway 
