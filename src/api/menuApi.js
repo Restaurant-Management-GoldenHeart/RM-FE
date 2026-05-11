@@ -47,7 +47,7 @@ export const menuApi = {
    *   name: string,
    *   description?: string,
    *   price: number,
-   *   status: string,           // "AVAILABLE" | "UNAVAILABLE"
+   *   status: string,           // "AVAILABLE" | "OUT_OF_STOCK"
    *   recipes: { ingredientId: number, quantity: number }[]
    * }} payload
    * @returns {Promise<ApiResponse<MenuItemResponse>>}

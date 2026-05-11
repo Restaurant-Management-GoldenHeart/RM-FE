@@ -13,6 +13,7 @@ export const usePOSAdapter = () => {
   const menuItems        = usePosStore(s => s.menuItems);
   
   const fetchTables      = useTableStore(s => s.fetchTables);
+  const fetchAreas       = useTableStore(s => s.fetchAreas);
   const selectTable      = useTableStore(s => s.selectTable);
   const setSelectedTableId = useTableStore(s => s.setSelectedTableId);
   const tablesLoading    = useTableStore(s => s.loading);
@@ -38,6 +39,7 @@ export const usePOSAdapter = () => {
     // Actions
     fetchInitialData,
     fetchTables,
+    fetchAreas,
     selectTable,
     setSelectedTableId,
     setCurrentOrderTarget,

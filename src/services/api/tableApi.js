@@ -75,6 +75,11 @@ export const tableApi = {
       items,
     }),
 
+  unmergeTables: (rootTableId, targets) =>
+    apiClient.post(`/tables/${rootTableId}/unmerge`, {
+      targets,
+    }),
+
   /**
    * Gộp 2 bàn lại với nhau.
    *

@@ -19,14 +19,27 @@ const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
 
 const normalizeText = (value) => String(value ?? '').toLowerCase();
+const getEffectiveStatus = (product) => product?.effectiveStatus || product?.status || 'OUT_OF_STOCK';
+const isEffectivelyAvailable = (product) => {
+  if (typeof product?.effectiveAvailable === 'boolean') {
+    return product.effectiveAvailable;
+  }
+  return getEffectiveStatus(product) === 'AVAILABLE';
+};
 
 const ProductCard = ({ product }) => {
   const selectedTableId = useTableStore(s => s.selectedTableId);
   const addItem = useCartStore(s => s.addItem);
   const cartQty = useCartStore(s => (s.draftItems[selectedTableId] ?? EMPTY_DRAFT).find(i => i.menuItemId === product.id)?.quantity ?? 0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const available = isEffectivelyAvailable(product);
 
   const handleAdd = () => {
+    if (!available) {
+      toast.error('Món này đang hết hàng ở chi nhánh hiện tại.');
+      return;
+    }
+
     const table = useTableStore.getState().tables.find(t => t.id === selectedTableId);
     if (!selectedTableId || !['OCCUPIED', 'AVAILABLE', 'RESERVED'].includes(table?.status)) {
       toast.error('⚠️ Bàn chưa sẵn sàng phục vụ!');
@@ -62,7 +75,7 @@ const ProductCard = ({ product }) => {
       onClick={handleAdd}
       className={cn(
         'group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full',
-        'active:scale-[0.98] cursor-pointer select-none transition-transform duration-150',
+        available ? 'active:scale-[0.98] cursor-pointer select-none transition-transform duration-150' : 'cursor-not-allowed opacity-60 grayscale-[0.15]',
         isAnimating && 'ring-2 ring-[#D4A017] ring-offset-1 scale-95'
       )}
     >
@@ -87,6 +100,11 @@ const ProductCard = ({ product }) => {
             {cartQty}
           </div>
         )}
+        {!available && (
+          <div className="absolute inset-x-2 bottom-2 rounded-xl bg-red-600/90 px-3 py-2 text-center text-[10px] font-black uppercase tracking-widest text-white">
+            Hết hàng
+          </div>
+        )}
       </div>
 
       {/* Content Section */}
@@ -109,7 +127,11 @@ const ProductCard = ({ product }) => {
         {/* Add Button */}
         <div className={cn(
           'absolute bottom-3 right-3 w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition-colors',
-          isAnimating ? 'bg-[#D4A017] text-white scale-110' : 'bg-gray-50 border border-gray-100 text-gray-400 group-hover:border-[#D4A017] group-hover:text-[#D4A017]'
+          isAnimating
+            ? 'bg-[#D4A017] text-white scale-110'
+            : available
+              ? 'bg-gray-50 border border-gray-100 text-gray-400 group-hover:border-[#D4A017] group-hover:text-[#D4A017]'
+              : 'bg-gray-100 border border-gray-200 text-gray-300'
         )}>
           {isAnimating ? <Check size={14} /> : <Plus size={14} />}
         </div>

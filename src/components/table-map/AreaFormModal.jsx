@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useTableStore } from '../../store/useTableStore';
 import { useBranchContext } from '../../context/BranchContext';
 import toast from 'react-hot-toast';
+import { getPersistedBranchId, resolveBranchId } from '../../utils/branchResolver';
 
 const AreaFormModal = ({ isOpen, onClose, onSuccess }) => {
   const [name, setName] = useState('');
@@ -18,7 +19,12 @@ const AreaFormModal = ({ isOpen, onClose, onSuccess }) => {
     if (!name.trim()) return;
     
     const authUser = useAuthStore.getState().user;
-    const branchId = selectedBranchId || authUser?.branchId || authUser?.profile?.branchId || 1;
+    const branchId = resolveBranchId(
+      selectedBranchId,
+      getPersistedBranchId(),
+      authUser?.branchId,
+      authUser?.profile?.branchId,
+    ) || 1;
 
     const payload = {
       name: name.trim(),

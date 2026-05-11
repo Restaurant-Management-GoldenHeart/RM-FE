@@ -15,6 +15,7 @@ const StaffPosPage = () => {
     currentOrderTarget,
     fetchInitialData,
     fetchTables,
+    fetchAreas,
     setCurrentOrderTarget,
     selectTable,
     setOrder,
@@ -23,8 +24,9 @@ const StaffPosPage = () => {
 
   useEffect(() => {
     fetchInitialData(selectedBranchId);
+    fetchAreas(selectedBranchId);
     fetchTables(selectedBranchId);
-  }, [fetchInitialData, fetchTables, selectedBranchId]);
+  }, [fetchAreas, fetchInitialData, fetchTables, selectedBranchId]);
 
   const handleTableSelect = ({ table, orderId, order }) => {
     setCurrentOrderTarget({

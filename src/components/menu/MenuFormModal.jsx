@@ -19,7 +19,7 @@ function RecipesEditor({ recipes, onChange, ingredients = [] }) {
     onChange(next);
   };
 
-  // Deduplicate by id — API có thể trả về cùng nguyên liệu từ nhiều chi nhánh
+  // Deduplicate by id để chống dữ liệu lặp nếu query cache cũ chưa được làm mới
   const uniqueIngredients = ingredients.filter(
     (ing, idx, arr) => arr.findIndex(x => String(x.id) === String(ing.id)) === idx
   );
@@ -296,7 +296,7 @@ export function MenuFormModal({
                 <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Trạng thái bán</label>
                 <select className={inputCls('status')} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                   <option value="AVAILABLE">✨ Đang kinh doanh</option>
-                  <option value="UNAVAILABLE">🛑 Tạm ngưng bán</option>
+                  <option value="OUT_OF_STOCK">🛑 Hết hàng / Tạm ngưng</option>
                 </select>
               </div>
 

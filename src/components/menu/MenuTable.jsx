@@ -28,6 +28,8 @@ function StatusBadge({ status }) {
   );
 }
 
+const resolveDisplayStatus = (item) => item?.effectiveStatus || item?.status || 'OUT_OF_STOCK';
+
 /**
  * SkeletonRow - Loading placeholder
  */
@@ -131,7 +133,7 @@ export function MenuTable({
                     {fmt(item.price)}
                   </span>
                 </td>
-                <td className="px-6 py-4"><StatusBadge status={item.status} /></td>
+                <td className="px-6 py-4"><StatusBadge status={resolveDisplayStatus(item)} /></td>
                 <td className="px-6 py-4">
                    <div className="flex items-center gap-1.5 text-gray-500 text-xs font-bold">
                       <Tag className="w-3.5 h-3.5 text-gray-300" />

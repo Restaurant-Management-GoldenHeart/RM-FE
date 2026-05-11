@@ -12,9 +12,11 @@ import toast from 'react-hot-toast';
 import tableApi from '../services/api/tableApi';
 import { mapTables } from '../services/mapper/tableMapper';
 import { useAuthStore } from './useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 let _activeOrderAbortController = null;
 let _activeOrderRequestId = 0;
+const DEFAULT_AREAS = [{ id: 'ALL', name: 'Tat ca' }];
 
 // Helper: Quản lý Virtual Tables trong LocalStorage
 const getVirtualTables = () => {
@@ -40,23 +42,55 @@ const setLazyOpenedTables = (data) => {
   localStorage.setItem('goldenheart_lazy_tables', JSON.stringify(data));
 };
 
+const resolveActiveBranchId = (preferredBranchId = null, currentBranchId = null) => {
+  const authUser = useAuthStore.getState()?.user;
+  return resolveBranchId(
+    preferredBranchId,
+    currentBranchId,
+    getPersistedBranchId(),
+    authUser?.branchId,
+    authUser?.profile?.branchId,
+  );
+};
+
+const isNativeMergedMember = (table) =>
+  Boolean(table?.merged && !table?.mergeRoot && table?.mergeRootTableId);
+
+const getOperationalTableId = (table) =>
+  isNativeMergedMember(table) ? Number(table.mergeRootTableId) : table?.id ?? null;
+
+const buildMergedTableLabel = (table) => {
+  if (!table?.mergeRoot) return table?.tableNumber ?? '';
+  const names = [
+    table.tableNumber,
+    ...(Array.isArray(table.mergedTableNames) ? table.mergedTableNames : []),
+  ]
+    .filter(Boolean)
+    .filter((name, index, arr) => arr.indexOf(name) === index);
+
+  return names.join(' & ');
+};
+
 export const useTableStore = create((set, get) => ({
 
   // ─── State ────────────────────────────────────────────────────────────────
 
   tables: [],
-  virtualTables: getVirtualTables(),
+  virtualTables: [],
   lazyOpenedTableIds: getLazyOpenedTables(),
   loading: false,
   error: null,
   selectedTableId: null,
+  activeBranchId: null,
+  tablesBranchId: null,
+  areasBranchId: null,
 
   // ─── Transaction State (Hardened Split) ───────────────────────────────────
   splitTransactions: {}, // { txId: { status, fromTableId, toTableId, bridgeTableId, steps } }
   lockedTableIds: [],    // Mảng ID các bàn đang bị khoá bởi transaction
 
   // ─── Takeaway & Area State ────────────────────────────────────────────────
-  areas: [{ id: 'ALL', name: 'Tất cả' }],
+  areas: [{ id: 'ALL', name: 'Táº¥t cáº£' }],
   takeawayOrders: [
     { id: 'MV1', order_number: 'MV-01', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
     { id: 'MV2', order_number: 'MV-02', customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null },
@@ -74,16 +108,29 @@ export const useTableStore = create((set, get) => ({
   /** Simple setter — dùng cho TAKEAWAY, không trigger getActiveOrder */
   setSelectedTableId: (id) => set({ selectedTableId: id }),
 
+  refreshTablesForCurrentBranch: async () => {
+    const branchId = resolveActiveBranchId(null, get().activeBranchId);
+    useTableStore.setState({ loading: false });
+    await get().fetchTables(branchId);
+  },
+
   fetchAreas: async (branchId) => {
     try {
       const { areaApi } = await import('../api/posApi');
-      const authUser = useAuthStore.getState()?.user;
-      const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
-      const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
-      
+      const resolvedBranchId = resolveActiveBranchId(branchId, get().activeBranchId);
+
+      if (!resolvedBranchId) {
+        set({ areas: DEFAULT_AREAS, areasBranchId: null });
+        return;
+      }
+
       const res = await areaApi.getAreas(resolvedBranchId);
       const fetchedAreas = Array.isArray(res) ? res : (res?.data || []);
-      set({ areas: [{ id: 'ALL', name: 'Tất cả' }, ...fetchedAreas] });
+      set({
+        areas: [...DEFAULT_AREAS, ...fetchedAreas],
+        areasBranchId: resolvedBranchId,
+        activeBranchId: resolvedBranchId,
+      });
     } catch (err) {
       console.error('Fetch Areas Error:', err);
     }
@@ -93,19 +140,32 @@ export const useTableStore = create((set, get) => ({
    * fetchTables — Tải danh sách bàn + Map Virtual Tables & Proxy Logic.
    */
   fetchTables: async (branchId) => {
-    if (get().loading) return;
+    const resolvedBranchId = resolveActiveBranchId(branchId, get().activeBranchId);
+    if (get().loading && get().tablesBranchId === resolvedBranchId) return;
 
-    const authUser = useAuthStore.getState()?.user;
-    const rawBranchId = branchId || authUser?.branchId || authUser?.profile?.branchId;
-    const resolvedBranchId = rawBranchId ? parseInt(rawBranchId, 10) : null;
+    if (!resolvedBranchId) {
+      set({
+        tables: [],
+        loading: false,
+        error: null,
+        activeBranchId: null,
+        tablesBranchId: null,
+      });
+      return;
+    }
 
     set({ loading: true, error: null });
 
     try {
       // 1. Tải danh sách bàn
       const response = await tableApi.getTables(resolvedBranchId);
-      let rawTables = response?.data ?? [];
-      let mappedTables = mapTables(rawTables);
+      let mappedTables = mapTables(response?.data ?? []).map(table => ({
+        ...table,
+        tableNumber: buildMergedTableLabel(table) || table.tableNumber,
+        displayName: buildMergedTableLabel(table) || table.displayName || table.tableNumber,
+        isMergedMember: isNativeMergedMember(table),
+        status: isNativeMergedMember(table) ? 'MERGED' : table.status,
+      }));
 
       // 2. Tải danh sách món từ bếp để "Self-healing" đơn mang về
       let takeawayFromBE = [];
@@ -116,7 +176,7 @@ export const useTableStore = create((set, get) => ({
         
         // Tìm các orderId của đơn mang về (tableName null hoặc chứa "Mang về")
         const takeawayOrderIds = [...new Set(kitchenItems
-          .filter(item => !item.tableName || item.tableName.includes('Mang về'))
+          .filter(item => !item.tableName || item.tableName.includes('Mang vá»'))
           .map(item => item.orderId)
         )];
         
@@ -166,7 +226,7 @@ export const useTableStore = create((set, get) => ({
       }
 
       // ========== SELF-HEALING MECHANISM ==========
-      let vTables = getVirtualTables();
+      let vTables = [];
       let needsRefetch = false;
 
       // Kiểm tra nếu mainTable không còn OCCUPIED hoặc RESERVED (VD: Đã thanh toán -> CLEANING/AVAILABLE)
@@ -208,8 +268,13 @@ export const useTableStore = create((set, get) => ({
       // Nếu có sự thay đổi do auto-unmerge, cần tải lại mảng bàn mới nhất từ BE
       if (needsRefetch) {
         const freshResponse = await tableApi.getTables(resolvedBranchId);
-        rawTables = freshResponse?.data ?? [];
-        mappedTables = mapTables(rawTables);
+        mappedTables = mapTables(freshResponse?.data ?? []).map(table => ({
+          ...table,
+          tableNumber: buildMergedTableLabel(table) || table.tableNumber,
+          displayName: buildMergedTableLabel(table) || table.displayName || table.tableNumber,
+          isMergedMember: isNativeMergedMember(table),
+          status: isNativeMergedMember(table) ? 'MERGED' : table.status,
+        }));
       }
 
       // ========== MAPPING & TRANSFORM DATA ==========
@@ -220,7 +285,7 @@ export const useTableStore = create((set, get) => ({
           return {
             ...table,
             tableNumber: isMain.virtualName,    // VD: "Bàn 1 & 2 & 3"
-            capacity: isMain.totalCapacity,     // Tổng capacity
+            capacity: isMain.totalCapacity,     // Tá»•ng capacity
             originalTableNumber: table.tableNumber,
             isVirtual: true,
             virtualTableObj: isMain
@@ -245,7 +310,7 @@ export const useTableStore = create((set, get) => ({
       // BE không trả về currentOrderId trong GET /tables → nếu ghi đè thẳng sẽ mất tham chiếu đơn.
       // Giải pháp: merge lại từ state hiện tại trước khi ghi vào store.
       const existingTables = get().tables;
-      const lazyIds = get().lazyOpenedTableIds;
+      let lazyIds = [...get().lazyOpenedTableIds];
       
       const finalTables = transformedTables.map(newTable => {
         // Nếu bàn nằm trong danh sách Lazy Open -> Ép trạng thái OCCUPIED
@@ -253,13 +318,11 @@ export const useTableStore = create((set, get) => ({
           return { ...newTable, status: 'OCCUPIED', currentOrderId: null };
         }
 
-        if (newTable.status === 'OCCUPIED' && !newTable.currentOrderId) {
+        if (newTable.status === 'OCCUPIED') {
           const existing = existingTables.find(t => t.id === newTable.id);
           if (existing?.currentOrderId) {
             // Nếu bàn đã có đơn thật -> Xoá khỏi danh sách Lazy
-            const newLazy = get().lazyOpenedTableIds.filter(id => id !== newTable.id);
-            set({ lazyOpenedTableIds: newLazy });
-            setLazyOpenedTables(newLazy);
+            lazyIds = lazyIds.filter(id => id !== newTable.id);
             return { ...newTable, currentOrderId: existing.currentOrderId };
           }
         }
@@ -267,15 +330,21 @@ export const useTableStore = create((set, get) => ({
         // Nếu bàn không còn AVAILABLE (ví dụ BE báo đã dọn xong hoặc có người khác vào) 
         // -> Xoá khỏi danh sách Lazy
         if (newTable.status !== 'AVAILABLE' && lazyIds.includes(newTable.id)) {
-           const newLazy = get().lazyOpenedTableIds.filter(id => id !== newTable.id);
-           set({ lazyOpenedTableIds: newLazy });
-           setLazyOpenedTables(newLazy);
+           lazyIds = lazyIds.filter(id => id !== newTable.id);
         }
 
         return newTable;
       });
 
-      set({ tables: finalTables, loading: false });
+      setLazyOpenedTables(lazyIds);
+      set({
+        tables: finalTables,
+        virtualTables: [],
+        lazyOpenedTableIds: lazyIds,
+        loading: false,
+        activeBranchId: resolvedBranchId,
+        tablesBranchId: resolvedBranchId,
+      });
     } catch (err) {
       console.error('[API_ERROR][TABLES]', err);
       set({ loading: false, error: err?.message || 'Không tải được danh sách bàn' });
@@ -288,19 +357,17 @@ export const useTableStore = create((set, get) => ({
    * Cập nhật thêm: Auto Redirect nếu bấm vào bàn phụ đã Merged.
    */
   selectTable: async (tableId) => {
-    let targetId = tableId;
+    const requestedTable = get().tables.find(t => t.id === tableId);
+    const targetId = getOperationalTableId(requestedTable) ?? tableId;
     
     // REDIRECT LOGIC FOR VIRTUAL TABLES
-    const currentTable = get().tables.find(t => t.id === targetId);
-    if (currentTable?.isMerged) {
-      // Find the main table it belongs to
-      const vt = get().virtualTables.find(v => v.childTableIds.includes(targetId));
-      if (vt) {
-         console.log(`[Virtual Proxy] Redirect từ bàn phụ ${targetId} sang bàn chính ${vt.mainTableId}`);
-         targetId = vt.mainTableId;
-      }
+    if (requestedTable?.status === 'MERGED' && requestedTable?.mergeRootTableId) {
+      return get().selectTable(Number(requestedTable.mergeRootTableId));
     }
+    if (false) {
+         console.log(`[Virtual Proxy] Redirect từ bàn phụ ${targetId} sang bàn chính ${vt.mainTableId}`);
 
+    }
     set({ selectedTableId: targetId });
     const table = get().tables.find(t => t.id === targetId);
     
@@ -308,7 +375,8 @@ export const useTableStore = create((set, get) => ({
     const { useOrderStore } = await import('./useOrderStore');
     
     if (table?.status === 'OCCUPIED') {
-      if (!table.currentOrderId) {
+      const isLazyOpen = get().lazyOpenedTableIds.includes(targetId);
+      if (isLazyOpen && !table.currentOrderId) {
         // CASE: LAZY OPENED TABLE (Ghost Order)
         useOrderStore.setState({ 
           order: { 
@@ -342,7 +410,7 @@ export const useTableStore = create((set, get) => ({
         const order = mapOrder(response?.data);
 
         if (!order) {
-          console.warn("[MAPPER_WARNING] OCCUPIED table but BE returned null active order!");
+          console.warn('[TABLE_ORDER_MISSING] Table is OCCUPIED but active order is null', { tableId: targetId });
           useOrderStore.setState({ loadingOrder: false });
         } else {
           useOrderStore.getState().setOrder(order);
@@ -472,9 +540,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 5️⃣ Đồng bộ lại UI từ Backend
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
       
       // Auto select bàn chính để nhân viên thấy ngay kết quả gộp
       get().selectTable(mainTableId);
@@ -517,9 +583,7 @@ export const useTableStore = create((set, get) => ({
       set({ virtualTables: updatedVt });
 
       // 3. Refetch
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
 
       return true;
     } catch (err) {
@@ -559,6 +623,29 @@ export const useTableStore = create((set, get) => ({
     return { orderId: null, order: { id: null, tableNumber: table.tableNumber } };
   },
 
+  closeTable: async (tableId) => {
+    const table = get().tables.find(t => t.id === tableId);
+    if (!table) return false;
+
+    const operationalTableId = getOperationalTableId(table);
+    const isLazyOpen = get().lazyOpenedTableIds.includes(operationalTableId);
+
+    if (!isLazyOpen) {
+      throw new Error('Backend hiện không hỗ trợ đóng bàn khi đã có order active.');
+    }
+
+    const newLazy = get().lazyOpenedTableIds.filter(id => id !== operationalTableId);
+    setLazyOpenedTables(newLazy);
+    set(state => ({
+      lazyOpenedTableIds: newLazy,
+      tables: state.tables.map(t =>
+        t.id === operationalTableId ? { ...t, status: 'AVAILABLE', currentOrderId: null } : t
+      ),
+    }));
+
+    return true;
+  },
+
   /**
    * cancelOrder — Hủy đơn hàng và giải phóng bàn về AVAILABLE.
    * Dùng cho nút “Đóng bàn / Hủy nhầm” trong TableActionModal.
@@ -572,9 +659,7 @@ export const useTableStore = create((set, get) => ({
       const { default: apiClient } = await import('../api/apiClient');
       await apiClient.post(`/orders/${orderId}/cancel`);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
       return true;
     } catch (err) {
       const msg = err?.response?.data?.message || 'Không thể đóng bàn';
@@ -596,10 +681,8 @@ export const useTableStore = create((set, get) => ({
     }
 
     try {
-      await tableApi.updateTableStatus(tableId, 'AVAILABLE');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await tableApi.updateTableStatus(getOperationalTableId(table), 'AVAILABLE');
+      await get().refreshTablesForCurrentBranch();
       toast.success(`Đã hủy đặt bàn ${table.tableNumber}.`);
       return true;
     } catch (err) {
@@ -618,10 +701,7 @@ export const useTableStore = create((set, get) => ({
 
     try {
       await tableApi.updateTableStatus(tableId, 'RESERVED');
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
       
       toast.success(`Đã đặt bàn ${table.tableNumber} cho ${customerName}`);
     } catch (err) {
@@ -638,11 +718,9 @@ export const useTableStore = create((set, get) => ({
     if (!table) return false;
 
     try {
-      await tableApi.updateTableStatus(tableId, 'AVAILABLE');
+      await tableApi.updateTableStatus(getOperationalTableId(table), 'AVAILABLE');
       
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId); 
+      await get().refreshTablesForCurrentBranch(); 
       // fetchTables có chứa self-healing nên sẽ tự động tách bàn ảo nếu đang là bàn chính
       
       toast.success(`Đã dọn xong bàn ${table.tableNumber}`);
@@ -666,11 +744,9 @@ export const useTableStore = create((set, get) => ({
     }
 
     try {
-      await tableApi.mergeTables(sourceTableId, targetTableId);
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
-      get().selectTable(targetTableId);
+      await tableApi.mergeTables(getOperationalTableId(sourceTable), getOperationalTableId(targetTable));
+      await get().refreshTablesForCurrentBranch();
+      get().selectTable(getOperationalTableId(targetTable));
       
       toast.success('Đã gộp bàn thành công!');
       return true;
@@ -682,21 +758,201 @@ export const useTableStore = create((set, get) => ({
   },
 
   /**
-   * splitTable — (Legacy) Tách món từ bàn này sang bàn khác.
+   * mergeTables - align voi contract native cua BE.
+   */
+  mergeTables: async (sourceTableId, targetTableId) => {
+    if (get().loading) return false;
+    if (sourceTableId === targetTableId) {
+      toast.error('Không thể gộp bàn vào chính nó.');
+      return false;
+    }
+
+    const sourceTable = get().tables.find(t => t.id === sourceTableId);
+    const targetTable = get().tables.find(t => t.id === targetTableId);
+    if (!sourceTable || !targetTable) {
+      toast.error('Không tìm thấy bàn hợp lệ để gộp.');
+      return false;
+    }
+    if (sourceTable.status !== 'OCCUPIED' || targetTable.status !== 'OCCUPIED') {
+      toast.error('Chỉ có thể gộp hai bàn đang có order active.');
+      return false;
+    }
+    if (get().lazyOpenedTableIds.includes(sourceTableId) || get().lazyOpenedTableIds.includes(targetTableId)) {
+      toast.error('Bàn mới mở nhưng chưa có order thật, không thể gộp.');
+      return false;
+    }
+
+    try {
+      await tableApi.mergeTables(getOperationalTableId(sourceTable), getOperationalTableId(targetTable));
+      await get().refreshTablesForCurrentBranch();
+      get().selectTable(getOperationalTableId(targetTable));
+      toast.success('Đã gộp bàn thành công!');
+      return true;
+    } catch (err) {
+      console.error('[API_ERROR][MERGE_TABLES]', err);
+      toast.error(err?.message || 'Gộp bàn thất bại.');
+      return false;
+    }
+  },
+
+  mergeTablesBatch: async (rootTableId, sourceTableIds = []) => {
+    if (get().loading) return false;
+
+    const rootTable = get().tables.find(table => table.id === Number(rootTableId));
+    if (!rootTable) {
+      toast.error('Không tìm thấy bàn chính hợp lệ.');
+      return false;
+    }
+
+    const operationalRootId = Number(getOperationalTableId(rootTable));
+    const operationalRootTable =
+      get().tables.find(table => table.id === operationalRootId) || rootTable;
+
+    if (get().lazyOpenedTableIds.includes(operationalRootId)) {
+      toast.error('Bàn chính cần có order active thật để gộp nhóm.');
+      return false;
+    }
+
+    if (operationalRootTable.status !== 'OCCUPIED') {
+      toast.error('Bàn chính phải đang phục vụ mới có thể gộp nhóm.');
+      return false;
+    }
+
+    const normalizedSourceIds = [...new Set((sourceTableIds || []).map(id => Number(id)).filter(Number.isFinite))]
+      .filter(id => id !== operationalRootId);
+
+    if (normalizedSourceIds.length === 0) {
+      toast.error('Cần chọn ít nhất một bàn thành viên để gộp.');
+      return false;
+    }
+
+    const preparedSources = [];
+    for (const sourceId of normalizedSourceIds) {
+      const rawSourceTable = get().tables.find(table => table.id === sourceId);
+      if (!rawSourceTable) {
+        toast.error('Có bàn thành viên không hợp lệ trong danh sách gộp.');
+        return false;
+      }
+
+      const operationalSourceId = Number(getOperationalTableId(rawSourceTable));
+      if (operationalSourceId === operationalRootId) {
+        continue;
+      }
+
+      const operationalSourceTable =
+        get().tables.find(table => table.id === operationalSourceId) || rawSourceTable;
+
+      if (get().lazyOpenedTableIds.includes(operationalSourceId)) {
+        toast.error(`Bàn ${rawSourceTable.tableNumber || rawSourceTable.id} mới mở nhưng chưa có order thật.`);
+        return false;
+      }
+
+      if (operationalSourceTable.status !== 'OCCUPIED') {
+        toast.error(`Bàn ${rawSourceTable.tableNumber || rawSourceTable.id} không ở trạng thái phục vụ.`);
+        return false;
+      }
+
+      if (operationalSourceTable.mergeRoot) {
+        toast.error('Chưa hỗ trợ gộp một nhóm bàn đang có vào một nhóm khác trong cùng thao tác này.');
+        return false;
+      }
+
+      if (isNativeMergedMember(rawSourceTable)) {
+        toast.error('Bàn thành viên đã thuộc nhóm gộp khác, không thể được chọn trực tiếp.');
+        return false;
+      }
+
+      preparedSources.push({
+        rawId: sourceId,
+        operationalId: operationalSourceId,
+      });
+    }
+
+    if (preparedSources.length === 0) {
+      toast.error('Không còn bàn thành viên hợp lệ để gộp.');
+      return false;
+    }
+
+    let mergedCount = 0;
+
+    try {
+      for (const source of preparedSources) {
+        await tableApi.mergeTables(source.operationalId, operationalRootId);
+        mergedCount += 1;
+      }
+
+      await get().refreshTablesForCurrentBranch();
+      await get().selectTable(operationalRootId);
+
+      toast.success(
+        mergedCount > 1 ? `Da gop ${mergedCount} ban vao nhom thanh cong.` : 'Da gop ban thanh cong!'
+      );
+      return true;
+    } catch (err) {
+      console.error('[API_ERROR][MERGE_TABLES_BATCH]', {
+        rootTableId: operationalRootId,
+        sourceTableIds: preparedSources.map(item => item.rawId),
+        mergedCount,
+        err,
+      });
+
+      await get().refreshTablesForCurrentBranch();
+      await get().selectTable(operationalRootId);
+
+      if (mergedCount > 0) {
+        toast.error(
+          `Đã gộp ${mergedCount} bàn trước khi dừng lại. Vui lòng kiểm tra nhóm bàn và tiếp tục nếu cần.`
+        );
+        return true;
+      }
+
+      toast.error(err?.response?.data?.message || err?.message || 'Gộp nhóm bàn thất bại.');
+      return false;
+    }
+  },
+
+  /**
+   * splitTable - chi tach sang ban doc lap AVAILABLE/RESERVED theo BE.
    */
   splitTable: async (sourceTableId, targetTableId, itemsToTransfer) => {
     if (get().loading) return false;
+
+    const sourceTable = get().tables.find(t => t.id === sourceTableId);
+    const targetTable = get().tables.find(t => t.id === targetTableId);
+    if (!sourceTable || !targetTable) {
+      toast.error('Không tìm thấy bàn nguồn hoặc bàn đích hợp lệ.');
+      return false;
+    }
+    if (sourceTableId === targetTableId) {
+      toast.error('Bàn đích không thể trùng với bàn nguồn.');
+      return false;
+    }
+    if (sourceTable.status !== 'OCCUPIED' || get().lazyOpenedTableIds.includes(sourceTableId)) {
+      toast.error('Bàn nguồn cần có order active thật để tách.');
+      return false;
+    }
+    if (!['AVAILABLE', 'RESERVED'].includes(targetTable.status)) {
+      toast.error('BE chỉ cho phép tách sang bàn đang trống hoặc đặt trước.');
+      return false;
+    }
+    if (
+      isNativeMergedMember(sourceTable) ||
+      isNativeMergedMember(targetTable) ||
+      sourceTable.mergeRoot ||
+      targetTable.mergeRoot
+    ) {
+      toast.error('Chỉ có thể tách giữa hai bàn độc lập, không nằm trong nhóm gộp.');
+      return false;
+    }
+
     try {
       const beItems = itemsToTransfer.map(item => ({
         orderItemId: Number(item.orderItemId || item.itemId || item.id),
         quantity: item.quantity,
       }));
 
-      await tableApi.splitTable(sourceTableId, targetTableId, beItems);
-      
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      useTableStore.setState({ loading: false });
-      await get().fetchTables(branchId);
+      await tableApi.splitTable(getOperationalTableId(sourceTable), getOperationalTableId(targetTable), beItems);
+      await get().refreshTablesForCurrentBranch();
       get().selectTable(sourceTableId);
 
       toast.success('Đã tách bàn thành công!');
@@ -713,6 +969,77 @@ export const useTableStore = create((set, get) => ({
   /**
    * lockTable — Khoá bàn để chặn double-click / concurrent modification
    */
+  unmergeTables: async (rootTableId, targets) => {
+    if (get().loading) return false;
+
+    const rootTable = get().tables.find(t => t.id === rootTableId);
+    if (!rootTable) {
+      toast.error('Không tìm thấy bàn chính hợp lệ.');
+      return false;
+    }
+    if (!rootTable.mergeRoot) {
+      toast.error('Chỉ bàn chính của nhóm gộp mới được tách lại.');
+      return false;
+    }
+    if (!Array.isArray(targets) || targets.length === 0) {
+      toast.error('Cần phân ít nhất một món về bàn gốc.');
+      return false;
+    }
+
+    const validMemberTableIds = new Set(
+      get()
+        .tables
+        .filter(
+          table =>
+            Number(table.mergeRootTableId) === Number(rootTableId) &&
+            Number(table.id) !== Number(rootTableId)
+        )
+        .map(table => Number(table.id))
+    );
+
+    const sanitizedTargets = targets
+      .map(target => ({
+        targetTableId: Number(target?.targetTableId),
+        items: Array.isArray(target?.items)
+          ? target.items
+              .map(item => ({
+                orderItemId: Number(item?.orderItemId || item?.itemId || item?.id),
+                quantity: Number(item?.quantity || 0),
+              }))
+              .filter(item => Number.isFinite(item.orderItemId) && item.quantity > 0)
+          : [],
+      }))
+      .filter(
+        target =>
+          validMemberTableIds.has(target.targetTableId) &&
+          Array.isArray(target.items) &&
+          target.items.length > 0
+      );
+
+    if (sanitizedTargets.length === 0) {
+      toast.error('Chỉ có thể phân món về các bàn thành viên của nhóm gộp.');
+      return false;
+    }
+
+    try {
+      await tableApi.unmergeTables(rootTableId, sanitizedTargets);
+      await get().refreshTablesForCurrentBranch();
+      if (get().selectedTableId === rootTableId) {
+        await get().selectTable(rootTableId);
+      }
+      toast.success('Đã tách lại nhóm bàn thành công.');
+      return true;
+    } catch (err) {
+      console.error('[API_ERROR][UNMERGE_TABLES]', {
+        rootTableId,
+        targets: sanitizedTargets,
+        err,
+      });
+      toast.error(err?.response?.data?.message || err?.message || 'Tách lại nhóm bàn thất bại.');
+      return false;
+    }
+  },
+
   lockTable: (tableId) => {
     set((state) => {
       if (state.lockedTableIds.includes(tableId)) return state;
@@ -795,7 +1122,7 @@ export const useTableStore = create((set, get) => ({
 
   /**
    * handleBridgeSplit — Orchestration để giả lập "Split vào bàn có Order"
-   * Flow: A -> (split) -> Bridge(Trống) -> (merge) -> B
+   * Flow: A -> (split) -> Bridge(Trá»‘ng) -> (merge) -> B
    */
   handleBridgeSplit: async (fromTableId, toTableId, itemsToTransfer) => {
     const txId = `split_tx_${Date.now()}`;
@@ -813,7 +1140,7 @@ export const useTableStore = create((set, get) => ({
       return false;
     }
 
-    // Khởi tạo Transaction State
+    // Khá»Ÿi táº¡o Transaction State
     get().markTransactionStatus(txId, {
       status: 'pending',
       fromTableId,
@@ -885,8 +1212,7 @@ export const useTableStore = create((set, get) => ({
       get().unlockTable(toTableId);
       get().unlockTable(bridgeTable.id);
 
-      const branchId = useAuthStore.getState()?.user?.branchId ?? 1;
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
       
       // Auto focus lại bàn đang thao tác thay vì bàn đích
       get().selectTable(fromTableId);
@@ -911,7 +1237,7 @@ export const useTableStore = create((set, get) => ({
   },
 
   updateTakeawayLocal: (slotId, patch) => {
-    const branchId = useAuthStore.getState()?.user?.branchId || 1;
+    const branchId = resolveActiveBranchId(null, get().activeBranchId) || 1;
     set(state => {
       const newOrders = state.takeawayOrders.map(o =>
         o.id === slotId ? { ...o, ...patch } : o
@@ -938,7 +1264,7 @@ export const useTableStore = create((set, get) => ({
 
     toast.success(`Đã mở ô ${slotId} — ${customerName || 'Khách lẻ'}`);
     return {
-      orderId: null, // tạo thật khi gửi bếp
+      orderId: null, // táº¡o tháº­t khi gá»­i báº¿p
       order: { id: null, tableNumber: 'Mang về', customerName: customerName || 'Khách lẻ' },
     };
   },
@@ -948,7 +1274,7 @@ export const useTableStore = create((set, get) => ({
    * Gọi sau khi thanh toán thành công.
    */
   completeTakeawayOrder: (slotId) => {
-    const branchId = useAuthStore.getState()?.user?.branchId || 1;
+    const branchId = resolveActiveBranchId(null, get().activeBranchId) || 1;
     const newOrders = get().takeawayOrders.map(o =>
       o.id === slotId
         ? { id: o.id, order_number: o.order_number, customerName: 'Khách lẻ', status: 'AVAILABLE', time: '--:--', orderId: null }
@@ -979,8 +1305,7 @@ export const useTableStore = create((set, get) => ({
   deleteTable: async (tableId) => {
     try {
       await tableApi.deleteTable(tableId);
-      const branchId = useAuthStore.getState()?.user?.branchId ?? null;
-      await get().fetchTables(branchId);
+      await get().refreshTablesForCurrentBranch();
       toast.success('Đã xóa bàn');
       return true;
     } catch (err) {

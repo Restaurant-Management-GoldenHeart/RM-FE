@@ -1,40 +1,70 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { MoreVertical, Pencil, Settings, Trash2, Users } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import { Users, Pencil, Trash2, Settings, MoreVertical } from 'lucide-react';
 
 const STATUS_CONFIG = {
-  AVAILABLE: { card: 'bg-white border-emerald-100 hover:border-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Trống' },
-  OCCUPIED:  { card: 'bg-white border-amber-200 hover:border-amber-400', badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Đang dùng', pulse: true },
-  RESERVED:  { card: 'bg-white border-blue-100 hover:border-blue-300', badge: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Đặt trước' },
-  DIRTY:     { card: 'bg-gray-50 border-gray-200 hover:border-gray-400', badge: 'bg-gray-200 text-gray-600 border-gray-300', dot: 'bg-gray-400', label: 'Cần dọn' },
+  AVAILABLE: {
+    card: 'bg-white border-emerald-100 hover:border-emerald-400',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dot: 'bg-emerald-500',
+    label: 'Trống',
+  },
+  OCCUPIED: {
+    card: 'bg-white border-amber-200 hover:border-amber-400',
+    badge: 'bg-amber-50 text-amber-700 border-amber-200',
+    dot: 'bg-amber-500',
+    label: 'Đang dùng',
+    pulse: true,
+  },
+  RESERVED: {
+    card: 'bg-white border-blue-100 hover:border-blue-300',
+    badge: 'bg-blue-50 text-blue-700 border-blue-200',
+    dot: 'bg-blue-500',
+    label: 'Đặt trước',
+  },
+  DIRTY: {
+    card: 'bg-slate-50 border-slate-200 hover:border-slate-400',
+    badge: 'bg-slate-200 text-slate-700 border-slate-300',
+    dot: 'bg-slate-500',
+    label: 'Cần dọn',
+  },
+  MERGED: {
+    card: 'bg-slate-50 border-slate-200 hover:border-slate-300',
+    badge: 'bg-slate-100 text-slate-600 border-slate-200',
+    dot: 'bg-slate-500',
+    label: 'Đã gộp',
+  },
 };
 
-export default function TableCard({ 
-  table, 
-  onEdit, 
-  onDelete, 
-  onSelect, 
-  onAction, 
+export default function TableCard({
+  table,
+  onEdit,
+  onDelete,
+  onSelect,
+  onAction,
   isSelected,
-  className 
+  className,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const config = STATUS_CONFIG[table.status] || STATUS_CONFIG.AVAILABLE;
 
-  // Handle click outside to close menu
+  const config = STATUS_CONFIG[table.status] || STATUS_CONFIG.AVAILABLE;
+  const isMergedMember = table.status === 'MERGED' || table.isMergedMember;
+  const displayLabel = table.displayName || table.tableNumber || table.table_number || 'Bàn ?';
+
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleClickOutside = event => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsMenuOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
+  const handleDelete = event => {
+    event.stopPropagation();
     setIsMenuOpen(false);
     onDelete?.(table);
   };
@@ -45,79 +75,112 @@ export default function TableCard({
         if (!isMenuOpen) onSelect?.(table);
       }}
       className={cn(
-        'relative flex flex-col justify-between p-2 sm:p-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md cursor-pointer transition-all min-h-[110px] sm:min-h-[130px] w-full h-full group',
+        'group relative flex h-full min-h-[124px] w-full cursor-pointer flex-col justify-between rounded-[1.2rem] border p-3 shadow-sm transition-all hover:shadow-md sm:min-h-[138px] sm:p-3.5',
         config.card,
-        isSelected && 'border-gold-500 shadow-xl ring-4 ring-gold-500/5 bg-gold-50/5',
+        isSelected && 'border-gold-500 bg-gold-50/20 shadow-xl ring-4 ring-gold-500/5',
         className
       )}
     >
-      {/* Hàng trên cùng (Badge & Menu) */}
-      <div className="flex justify-between items-start w-full">
-        {/* Badge Trạng thái */}
-        <div className={cn('px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 text-[10px] sm:text-xs font-bold border shadow-sm', config.badge)}>
-          <div className={cn('w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full', config.dot, config.pulse && 'animate-pulse')} />
+      <div className="flex w-full items-start justify-between gap-2">
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold shadow-sm sm:text-xs',
+            config.badge
+          )}
+        >
+          <div className={cn('h-2 w-2 rounded-full', config.dot, config.pulse && 'animate-pulse')} />
           {config.label}
         </div>
 
-        {/* Nút 3 chấm */}
         <div className="relative" ref={menuRef}>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsMenuOpen(!isMenuOpen);
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation();
+              setIsMenuOpen(current => !current);
             }}
-            className="-mt-1 -mr-1 p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors bg-white/50 backdrop-blur-sm z-20"
+            className="rounded-lg bg-white/80 p-1 text-slate-400 backdrop-blur-sm transition-colors hover:bg-slate-100 hover:text-slate-900"
           >
             <MoreVertical size={16} />
           </button>
 
-          {isMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-30">
-              {onAction && (
-                 <button 
-                   onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); onAction(table); }}
-                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                 >
-                   <Settings size={14} /> Cài đặt bàn
-                 </button>
-              )}
-              {onEdit && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); onEdit(table); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          {isMenuOpen ? (
+            <div className="absolute right-0 top-full z-30 mt-1 w-40 rounded-xl border border-slate-100 bg-white py-1 shadow-xl">
+              {onAction ? (
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation();
+                    setIsMenuOpen(false);
+                    onAction(table);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50"
                 >
-                  <Pencil size={14} /> Sửa bàn
+                  <Settings size={14} />
+                  Thao tác bàn
                 </button>
-              )}
-              {onDelete && (
-                <button 
+              ) : null}
+
+              {onEdit ? (
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation();
+                    setIsMenuOpen(false);
+                    onEdit(table);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <Pencil size={14} />
+                  Sửa bàn
+                </button>
+              ) : null}
+
+              {onDelete ? (
+                <button
+                  type="button"
                   onClick={handleDelete}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
                 >
-                  <Trash2 size={14} /> Xóa bàn
+                  <Trash2 size={14} />
+                  Xóa bàn
                 </button>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Giữa (Tên Bàn) */}
-      <div className="flex-1 flex items-center justify-center py-1 sm:py-2">
-        <span className={cn('text-xl sm:text-2xl md:text-3xl font-extrabold transition-colors', isSelected ? 'text-gold-600' : 'text-slate-800 group-hover:text-gold-600')}>
-          {table.tableNumber || table.table_number || 'Bàn ?'}
-        </span>
+      <div className="flex flex-1 items-center justify-center py-3">
+        <div className="text-center">
+          <span
+            className={cn(
+              'block break-words font-extrabold leading-tight transition-colors',
+              displayLabel.length > 18 ? 'text-base sm:text-lg md:text-xl' : 'text-xl sm:text-2xl md:text-3xl',
+              isSelected ? 'text-gold-600' : 'text-slate-800 group-hover:text-gold-600'
+            )}
+          >
+            {displayLabel}
+          </span>
+
+          {isMergedMember && table.mergeRootTableName ? (
+            <span className="mt-1 block text-[10px] font-semibold text-slate-500">
+              Thao tác tại {table.mergeRootTableName}
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      {/* Hàng dưới cùng (Sức chứa) */}
-      <div className="flex justify-center items-center w-full mt-auto">
-        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md text-slate-400 font-semibold text-[10px] sm:text-xs border border-gray-100/50">
-          <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+      <div className="mt-auto flex w-full items-center justify-center">
+        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-500 sm:text-xs">
+          <Users className="h-3 w-3 sm:h-4 sm:w-4" />
           <span>{table.capacity} chỗ</span>
         </div>
       </div>
-      
-      {isSelected && <div className="absolute top-0 right-1 w-6 h-6 bg-gold-600 rotate-45 translate-x-3 -translate-y-3 shadow-lg z-10" />}
+
+      {isSelected ? (
+        <div className="absolute right-1 top-0 z-10 h-6 w-6 translate-x-3 -translate-y-3 rotate-45 bg-gold-600 shadow-lg" />
+      ) : null}
     </div>
   );
 }

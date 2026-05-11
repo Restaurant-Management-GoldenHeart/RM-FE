@@ -1,38 +1,52 @@
-import React, { useState, useMemo } from 'react';
-import { X, ArrowRightLeft, Minus, Plus, Check } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowRightLeft, Check, Minus, Plus, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useTableStore } from '../../store/useTableStore';
 import { useOrderStore } from '../../store/useOrderStore';
-import { orderApi } from '../../api/posApi';
 import { cn } from '../../utils/cn';
-import toast from 'react-hot-toast';
 
-/**
- * SplitTableModal — Nghiệp vụ tách món từ đơn hiện tại sang bàn khác.
- */
 const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
-  const tables = useTableStore(s => s.tables);
-  const splitTable = useTableStore(s => s.splitTable);
-  const order = useOrderStore(s => fromTable?.currentOrderId ? s.orders[fromTable.currentOrderId] : null);
+  const tables = useTableStore(state => state.tables);
+  const splitTable = useTableStore(state => state.splitTable);
+  const order = useOrderStore(state =>
+    Object.values(state.orders).find(
+      candidate =>
+        candidate?.tableId === fromTable?.id &&
+        !['PAID', 'CANCELLED', 'MERGED'].includes(candidate.status)
+    ) || null
+  );
 
   const [toTableId, setToTableId] = useState('');
-  const [selectedItems, setSelectedItems] = useState({}); // { itemId: quantity }
+  const [selectedItems, setSelectedItems] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Lọc danh sách món hợp lệ để tách (chưa thanh toán, không bị huỷ)
   const items = useMemo(() => {
     if (!order) return [];
-    return order.items.filter(i => i.status !== 'CANCELLED');
+    return order.items.filter(item => item.status !== 'CANCELLED');
   }, [order]);
+
+  const targetTables = useMemo(
+    () =>
+      tables.filter(
+        table =>
+          table.id !== fromTable?.id &&
+          ['AVAILABLE', 'RESERVED'].includes(table.status) &&
+          !table.merged &&
+          !table.mergeRoot &&
+          !table.isMergedMember
+      ),
+    [fromTable?.id, tables]
+  );
 
   const handleToggleItem = (itemId, maxQty) => {
     setSelectedItems(prev => {
-      const newItems = { ...prev };
-      if (newItems[itemId]) {
-        delete newItems[itemId];
+      const next = { ...prev };
+      if (next[itemId]) {
+        delete next[itemId];
       } else {
-        newItems[itemId] = maxQty;
+        next[itemId] = maxQty;
       }
-      return newItems;
+      return next;
     });
   };
 
@@ -45,12 +59,23 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
   };
 
   const handleSplit = async () => {
-    if (!toTableId) return toast.error('Vui lòng chọn bàn đích');
-    const transferPayload = Object.entries(selectedItems).map(([itemId, quantity]) => ({ itemId, quantity }));
-    if (transferPayload.length === 0) return toast.error('Vui lòng chọn ít nhất 1 món');
+    if (!toTableId) {
+      toast.error('Vui lòng chọn bàn đích.');
+      return;
+    }
+
+    const transferPayload = Object.entries(selectedItems).map(([itemId, quantity]) => ({
+      itemId,
+      quantity,
+    }));
+
+    if (transferPayload.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một món.');
+      return;
+    }
 
     setIsProcessing(true);
-    const success = await splitTable(order.id, Number(toTableId), transferPayload);
+    const success = await splitTable(fromTable.id, Number(toTableId), transferPayload);
     setIsProcessing(false);
     if (success) onClose();
   };
@@ -60,51 +85,75 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 h-[600px]">
-        {/* Header */}
-        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+      <div className="relative flex h-[600px] w-full max-w-2xl flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-8">
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-              <ArrowRightLeft className="text-gold-600" /> Tách bàn & Chuyển món
+            <h2 className="flex items-center gap-3 text-2xl font-black tracking-tight text-gray-900">
+              <ArrowRightLeft className="text-gold-600" /> Tách món sang bàn khác
             </h2>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-              Từ Bàn {fromTable.tableNumber} (Đơn #{order.id})
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              Từ {fromTable.displayName || fromTable.tableNumber} - đơn #{order.id}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full"><X size={20} /></button>
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-white">
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left: Items Selection */}
-          <div className="flex-1 overflow-y-auto p-8 space-y-4 border-r border-gray-100">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Chọn món cần chuyển</h3>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 space-y-4 overflow-y-auto border-r border-gray-100 p-8">
+            <h3 className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Chọn món cần chuyển
+            </h3>
             {items.map(item => {
-              const isSelected = !!selectedItems[item.id];
+              const isSelected = Boolean(selectedItems[item.id]);
               return (
-                <div 
-                  key={item.id} 
+                <div
+                  key={item.id}
                   className={cn(
-                    "p-4 rounded-3xl border-2 transition-all cursor-pointer",
-                    isSelected ? "border-gold-500 bg-gold-50/30 shadow-lg shadow-gold-600/5" : "border-gray-50 bg-gray-50/50 hover:border-gray-200"
+                    'cursor-pointer rounded-3xl border-2 p-4 transition-all',
+                    isSelected
+                      ? 'border-gold-500 bg-gold-50/30 shadow-lg shadow-gold-600/5'
+                      : 'border-gray-50 bg-gray-50/50 hover:border-gray-200'
                   )}
                   onClick={() => handleToggleItem(item.id, item.quantity)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", isSelected ? "bg-gold-600 border-gold-600" : "border-gray-200")}>
+                      <div
+                        className={cn(
+                          'flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all',
+                          isSelected ? 'border-gold-600 bg-gold-600' : 'border-gray-200'
+                        )}
+                      >
                         {isSelected && <Check size={12} className="text-white" />}
                       </div>
                       <div>
                         <p className="text-sm font-black text-gray-900">{item.name}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Số lượng có sẵn: {item.quantity}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-tighter text-gray-400">
+                          Số lượng hiện có: {item.quantity}
+                        </p>
                       </div>
                     </div>
 
                     {isSelected && (
-                      <div className="flex items-center gap-2 bg-white rounded-xl p-1 shadow-sm border border-gold-100" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => updateQty(item.id, -1, item.quantity)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gold-600"><Minus size={14}/></button>
-                        <span className="text-sm font-black w-6 text-center">{selectedItems[item.id]}</span>
-                        <button onClick={() => updateQty(item.id, 1, item.quantity)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gold-600"><Plus size={14}/></button>
+                      <div
+                        className="flex items-center gap-2 rounded-xl border border-gold-100 bg-white p-1 shadow-sm"
+                        onClick={event => event.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => updateQty(item.id, -1, item.quantity)}
+                          className="flex h-8 w-8 items-center justify-center text-gray-400 hover:text-gold-600"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="w-6 text-center text-sm font-black">{selectedItems[item.id]}</span>
+                        <button
+                          onClick={() => updateQty(item.id, 1, item.quantity)}
+                          className="flex h-8 w-8 items-center justify-center text-gray-400 hover:text-gold-600"
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -113,23 +162,35 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
             })}
           </div>
 
-          {/* Right: Target Table Selection */}
-          <div className="w-[280px] p-8 flex flex-col bg-gray-50/30">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Chuyển sang bàn</h3>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2 no-scrollbar">
-              {tables.filter(t => t.id !== fromTable.id).map(t => (
+          <div className="flex w-[280px] flex-col bg-gray-50/30 p-8">
+            <h3 className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Chuyển sang bàn
+            </h3>
+            <div className="no-scrollbar flex-1 space-y-2 overflow-y-auto pr-2">
+              {targetTables.map(table => (
                 <button
-                  key={t.id}
-                  onClick={() => setToTableId(t.id)}
+                  key={table.id}
+                  onClick={() => setToTableId(table.id)}
                   className={cn(
-                    "w-full p-4 rounded-3xl border-2 text-left transition-all",
-                    toTableId === t.id ? "bg-gray-900 border-gray-900 text-white shadow-xl" : "bg-white border-gray-100 text-gray-400 hover:border-gray-300"
+                    'w-full rounded-3xl border-2 p-4 text-left transition-all',
+                    Number(toTableId) === table.id
+                      ? 'border-gray-900 bg-gray-900 text-white shadow-xl'
+                      : 'border-gray-100 bg-white text-gray-400 hover:border-gray-300'
                   )}
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="font-black text-sm uppercase">Bàn {t.tableNumber}</span>
-                    <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded", t.status === 'OCCUPIED' ? "bg-amber-500/20 text-amber-500" : "bg-emerald-500/20 text-emerald-500")}>
-                      {t.status === 'OCCUPIED' ? 'Đã bận (Gộp)' : 'Trống (Tách mới)'}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black uppercase">
+                      {table.displayName || table.tableNumber}
+                    </span>
+                    <span
+                      className={cn(
+                        'rounded px-2 py-0.5 text-[9px] font-bold',
+                        table.status === 'RESERVED'
+                          ? 'bg-blue-500/20 text-blue-500'
+                          : 'bg-emerald-500/20 text-emerald-500'
+                      )}
+                    >
+                      {table.status === 'RESERVED' ? 'Đặt trước' : 'Sẵn sàng nhận tách'}
                     </span>
                   </div>
                 </button>
@@ -140,10 +201,14 @@ const SplitTableModal = ({ isOpen, onClose, fromTable }) => {
               <button
                 onClick={handleSplit}
                 disabled={isProcessing || !toTableId || Object.keys(selectedItems).length === 0}
-                className="w-full py-4 bg-gold-600 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-gold-600/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] bg-gold-600 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-gold-600/20 transition-all active:scale-95 disabled:opacity-50"
               >
-                {isProcessing ? <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" /> : <ArrowRightLeft size={18} />}
-                Xác nhận Tách
+                {isProcessing ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <ArrowRightLeft size={18} />
+                )}
+                Xác nhận tách
               </button>
             </div>
           </div>

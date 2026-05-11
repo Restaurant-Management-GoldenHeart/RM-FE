@@ -4,6 +4,7 @@ import { tableApi } from '../../api/posApi';
 import { useTableStore } from '../../store/useTableStore';
 import { useBranchContext } from '../../context/BranchContext';
 import toast from 'react-hot-toast';
+import { getPersistedBranchId, resolveBranchId } from '../../utils/branchResolver';
 
 const TableFormModal = ({ isOpen, onClose, initialData = null, onSuccess, areas: areasProp }) => {
   const { areas: storeAreas, fetchAreas } = useTableStore();
@@ -44,13 +45,20 @@ const TableFormModal = ({ isOpen, onClose, initialData = null, onSuccess, areas:
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.tableNumber) return;
-    
+
+    const activeBranchId = resolveBranchId(
+      selectedBranchId,
+      getPersistedBranchId(),
+      initialData?.branchId,
+      initialData?.branch_id,
+    );
+
     setLoading(true);
     try {
       if (initialData && initialData.id) {
         await tableApi.updateTable(initialData.id, {
           ...initialData,
-          branchId: selectedBranchId || initialData.branchId,
+          branchId: activeBranchId,
           tableNumber: formData.tableNumber,
           capacity: Number(formData.capacity),
           areaId: formData.area_id,
@@ -65,7 +73,7 @@ const TableFormModal = ({ isOpen, onClose, initialData = null, onSuccess, areas:
 
         await tableApi.createTable({
           ...formData,
-          branchId: selectedBranchId,
+          branchId: activeBranchId,
           areaId: formData.area_id,
           capacity: Number(formData.capacity),
           posX: new_x,

@@ -18,6 +18,8 @@ function StatusBadge({ status }) {
   );
 }
 
+const resolveDisplayStatus = (item) => item?.effectiveStatus || item?.status || 'OUT_OF_STOCK';
+
 export default function MenuMobileList({ items, loading, onEdit, onDelete, isAdmin }) {
   if (loading) {
     return (
@@ -72,7 +74,7 @@ export default function MenuMobileList({ items, loading, onEdit, onDelete, isAdm
               <div className="flex items-start justify-between gap-2 min-w-0">
                 <h4 className="font-black text-gray-900 text-sm leading-tight truncate min-w-0 flex-1">{item.name}</h4>
                 <div className="shrink-0">
-                  <StatusBadge status={item.status} />
+                  <StatusBadge status={resolveDisplayStatus(item)} />
                 </div>
               </div>
               

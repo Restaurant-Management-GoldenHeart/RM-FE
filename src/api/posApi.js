@@ -4,6 +4,7 @@
  */
 import apiClient from './apiClient';
 import { useAuthStore } from '../store/useAuthStore';
+import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
 export const tableApi = {
   /**
@@ -86,7 +87,12 @@ export const tableApi = {
    */
   createTable: async (data) => {
     const authUser = useAuthStore.getState().user;
-    const branchId = data.branchId || authUser?.branchId || authUser?.profile?.branchId || 1;
+    const branchId = resolveBranchId(
+      data.branchId,
+      getPersistedBranchId(),
+      authUser?.branchId,
+      authUser?.profile?.branchId,
+    ) || 1;
     
     const res = await apiClient.post('/tables', {
       branchId: branchId,
@@ -107,7 +113,12 @@ export const tableApi = {
    */
   updateTable: async (id, data) => {
     const authUser = useAuthStore.getState().user;
-    const branchId = data.branchId || authUser?.branchId || authUser?.profile?.branchId || 1;
+    const branchId = resolveBranchId(
+      data.branchId,
+      getPersistedBranchId(),
+      authUser?.branchId,
+      authUser?.profile?.branchId,
+    ) || 1;
 
     const res = await apiClient.put(`/tables/${id}`, {
       branchId: branchId,
