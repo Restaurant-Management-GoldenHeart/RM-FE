@@ -1,15 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Receipt, User, MapPin, Calendar, CreditCard, 
-  ShoppingBag, Download, Loader2, AlertCircle, Printer
+import {
+  X,
+  Receipt,
+  User,
+  MapPin,
+  Calendar,
+  CreditCard,
+  ShoppingBag,
+  Download,
+  Loader2,
+  AlertCircle,
+  Printer,
 } from 'lucide-react';
+import { clsx } from 'clsx';
 import { reportApi } from '../../api/reportApi';
 import { orderApi } from '../../api/posApi';
-import { clsx } from 'clsx';
 
-const fmt = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number(v) || 0);
+const fmt = (value) =>
+  new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+  }).format(Number(value) || 0);
+
+const toSafeNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeOrderItem = (item) => {
+  const quantity = toSafeNumber(item?.quantity);
+  const unitPrice = toSafeNumber(item?.unitPrice ?? item?.price);
+  const lineTotal = toSafeNumber(item?.lineTotal ?? unitPrice * quantity);
+
+  return {
+    ...item,
+    quantity,
+    unitPrice,
+    lineTotal,
+  };
+};
 
 export default function BillDetailModal({ isOpen, onClose, billId }) {
   const [loading, setLoading] = useState(true);
@@ -23,18 +54,33 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
     }
   }, [isOpen, billId]);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const billRes = await reportApi.getBillDetail(billId);
-      const billData = billRes.data || billRes; 
+      const billData = billRes.data || billRes;
       setBill(billData);
 
       if (billData?.orderId) {
         const orderRes = await orderApi.getOrder(billData.orderId);
-        const oData = orderRes.data || orderRes;
-        setOrder(oData);
+        const orderData = orderRes.data || orderRes;
+        setOrder(orderData);
+      } else {
+        setOrder(null);
       }
     } catch (err) {
       console.error('Failed to fetch bill detail:', err);
@@ -44,27 +90,15 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   const displayTime = order?.closedAt || bill?.lastPaidAt;
-  const itemsList = order?.orderItems || order?.items || [];
+  const itemsList = (order?.orderItems || order?.items || []).map(normalizeOrderItem);
 
   return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -72,66 +106,97 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         />
 
-        {/* Modal Content */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="relative bg-white/90 backdrop-blur-xl w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20"
+          className="relative flex h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2.5rem] border border-white/20 bg-white/90 shadow-2xl backdrop-blur-xl"
         >
-          {/* Header */}
-          <div className="shrink-0 p-8 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gold-50/50 to-white/50">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gold-600 flex items-center justify-center shadow-lg shadow-gold-600/20">
-                <Receipt className="w-7 h-7 text-white" />
+          <div className="shrink-0 border-b border-gray-100 bg-gradient-to-r from-gold-50/50 to-white/50 p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gold-600 shadow-lg shadow-gold-600/20">
+                  <Receipt className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight text-gray-900">
+                    Chi tiết hóa đơn
+                  </h3>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-widest text-gold-600">
+                    Mã số: #{billId}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Chi tiết Hóa đơn</h3>
-                <p className="text-xs text-gold-600 font-bold uppercase tracking-widest mt-1">
-                  Mã số: #{billId}
-                </p>
-              </div>
+
+              <button
+                onClick={onClose}
+                className="rounded-2xl border border-transparent p-3 text-gray-400 transition-all hover:border-gray-200 hover:bg-gray-100 hover:text-gray-900"
+              >
+                <X className="h-6 w-6" />
+              </button>
             </div>
-            <button 
-              onClick={onClose}
-              className="p-3 hover:bg-gray-100 rounded-2xl transition-all border border-transparent hover:border-gray-200 text-gray-400 hover:text-gray-900"
-            >
-              <X className="w-6 h-6" />
-            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+          <div className="custom-scrollbar flex-1 space-y-8 overflow-y-auto p-8">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4 text-center text-gray-400">
-                <Loader2 className="w-10 h-10 animate-spin text-gold-600" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Đang tải dữ liệu hóa đơn...</p>
+              <div className="flex flex-col items-center justify-center gap-4 py-20 text-center text-gray-400">
+                <Loader2 className="h-10 w-10 animate-spin text-gold-600" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Đang tải dữ liệu hóa đơn...
+                </p>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4 text-center text-red-500">
-                <AlertCircle className="w-12 h-12" />
+              <div className="flex flex-col items-center justify-center gap-4 py-20 text-center text-red-500">
+                <AlertCircle className="h-12 w-12" />
                 <p className="font-bold">{error}</p>
-                <button onClick={fetchData} className="px-6 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold uppercase hover:bg-red-100">Thử lại</button>
+                <button
+                  onClick={fetchData}
+                  className="rounded-xl bg-red-50 px-6 py-2 text-xs font-bold uppercase text-red-600 hover:bg-red-100"
+                >
+                  Thử lại
+                </button>
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <InfoItem icon={User} label="Khách hàng" value={bill.customerName || 'Khách lẻ'} />
-                    <InfoItem icon={MapPin} label="Bàn / Khu vực" value={bill.tableName || 'Đơn mang về'} />
+                    <InfoItem
+                      icon={User}
+                      label="Khách hàng"
+                      value={bill?.customerName || 'Khách lẻ'}
+                    />
+                    <InfoItem
+                      icon={MapPin}
+                      label="Bàn / Khu vực"
+                      value={bill?.tableName || 'Đơn mang về'}
+                    />
                   </div>
+
                   <div className="space-y-4">
-                    <InfoItem icon={Calendar} label="Thời gian" value={displayTime ? new Date(displayTime).toLocaleString('vi-VN') : '--:--'} />
+                    <InfoItem
+                      icon={Calendar}
+                      label="Thời gian"
+                      value={displayTime ? new Date(displayTime).toLocaleString('vi-VN') : '--:--'}
+                    />
+
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                        <CreditCard className="w-4 h-4" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <CreditCard className="h-4 w-4" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Trạng thái</p>
-                        <span className={clsx(
-                          "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
-                          bill.status === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                        )}>
-                          {bill.status === 'PAID' ? 'Đã thanh toán' : 'Chưa hoàn tất'}
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          Trạng thái
+                        </p>
+                        <span
+                          className={clsx(
+                            'rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
+                            bill?.status === 'PAID'
+                              ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                              : 'border-amber-100 bg-amber-50 text-amber-600'
+                          )}
+                        >
+                          {bill?.status === 'PAID' ? 'Đã thanh toán' : 'Chưa hoàn tất'}
                         </span>
                       </div>
                     </div>
@@ -139,38 +204,63 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Danh sách món ăn</p>
-                  <div className="bg-gray-50/50 rounded-3xl border border-gray-100 overflow-hidden">
-                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar bg-white/50">
-                      <table className="w-full text-left border-separate border-spacing-0">
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    Danh sách món ăn
+                  </p>
+
+                  <div className="overflow-hidden rounded-3xl border border-gray-100 bg-gray-50/50">
+                    <div className="custom-scrollbar max-h-[300px] overflow-y-auto bg-white/50">
+                      <table className="w-full border-separate border-spacing-0 text-left">
                         <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
-                          <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                            <th className="py-4 px-6 border-b border-gray-100">Món ăn</th>
-                            <th className="py-4 px-4 text-center border-b border-gray-100">Số lượng</th>
-                            <th className="py-4 px-6 text-right border-b border-gray-100">Đơn giá</th>
+                          <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            <th className="border-b border-gray-100 px-6 py-4">Món ăn</th>
+                            <th className="border-b border-gray-100 px-4 py-4 text-center">Số lượng</th>
+                            <th className="border-b border-gray-100 px-6 py-4 text-right">Đơn giá</th>
+                            <th className="border-b border-gray-100 px-6 py-4 text-right">Thành tiền</th>
                           </tr>
                         </thead>
+
                         <tbody className="divide-y divide-gray-50">
                           {itemsList.length > 0 ? (
                             itemsList.map((item, idx) => (
-                              <tr key={idx} className="group hover:bg-white transition-all">
-                                <td className="py-4 px-6">
-                                  <p className="text-sm font-bold text-gray-900">{item.menuItemName || item.itemName}</p>
-                                  {item.note && <p className="text-[10px] text-amber-600 font-medium italic mt-0.5">Note: {item.note}</p>}
+                              <tr key={item.id || idx} className="group transition-all hover:bg-white">
+                                <td className="px-6 py-4">
+                                  <p className="text-sm font-bold text-gray-900">
+                                    {item.menuItemName || item.itemName}
+                                  </p>
+                                  {item.note ? (
+                                    <p className="mt-0.5 text-[10px] font-medium italic text-amber-600">
+                                      Note: {item.note}
+                                    </p>
+                                  ) : null}
                                 </td>
-                                <td className="py-4 px-4 text-center">
-                                  <span className="text-sm font-black text-gray-500 tabular-nums">x{item.quantity}</span>
+
+                                <td className="px-4 py-4 text-center">
+                                  <span className="tabular-nums text-sm font-black text-gray-500">
+                                    x{item.quantity}
+                                  </span>
                                 </td>
-                                <td className="py-4 px-6 text-right">
-                                  <span className="text-sm font-black text-gray-900 tabular-nums">{fmt(item.price)}</span>
+
+                                <td className="px-6 py-4 text-right">
+                                  <span className="tabular-nums text-sm font-black text-gray-900">
+                                    {fmt(item.unitPrice)}
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-4 text-right">
+                                  <span className="tabular-nums text-sm font-black text-gold-600">
+                                    {fmt(item.lineTotal)}
+                                  </span>
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={3} className="py-16 text-center">
-                                <ShoppingBag className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                                <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">Không tìm thấy món ăn</p>
+                              <td colSpan={4} className="py-16 text-center">
+                                <ShoppingBag className="mx-auto mb-3 h-10 w-10 text-gray-200" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
+                                  Không tìm thấy món ăn
+                                </p>
                               </td>
                             </tr>
                           )}
@@ -180,48 +270,68 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-dashed border-gray-200">
+                <div className="border-t border-dashed border-gray-200 pt-4">
                   <div className="flex justify-end">
                     <div className="w-full max-w-xs space-y-3">
-                      <SummaryLine label="Tạm tính" value={fmt(bill.subtotal)} />
-                      <SummaryLine label="Thuế (VAT)" value={fmt(bill.tax)} />
-                      <SummaryLine label="Giảm giá" value={`-${fmt(bill.discount)}`} isDiscount />
-                      <div className="h-px bg-gray-100 my-4" />
-                      <div className="flex justify-between items-center bg-gold-50/30 p-4 rounded-2xl border border-gold-100/50">
-                        <span className="text-sm font-black text-gray-900 uppercase tracking-tight">Tổng thanh toán</span>
-                        <span className="text-2xl font-black text-gold-600 tabular-nums">{fmt(bill.total)}</span>
+                      <SummaryLine label="Tạm tính" value={fmt(bill?.subtotal)} />
+                      <SummaryLine label="Thuế (VAT)" value={fmt(bill?.tax)} />
+                      <SummaryLine
+                        label="Giảm giá"
+                        value={`-${fmt(bill?.discount)}`}
+                        isDiscount
+                      />
+
+                      <div className="my-4 h-px bg-gray-100" />
+
+                      <div className="flex items-center justify-between rounded-2xl border border-gold-100/50 bg-gold-50/30 p-4">
+                        <span className="text-sm font-black uppercase tracking-tight text-gray-900">
+                          Tổng thanh toán
+                        </span>
+                        <span className="tabular-nums text-2xl font-black text-gold-600">
+                          {fmt(bill?.total)}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                   <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Phương thức thanh toán</p>
-                   <div className="flex flex-wrap gap-2">
-                     {bill.payments?.map((p, i) => (
-                       <div key={i} className="px-4 py-2 bg-white border border-gray-100 rounded-xl flex items-center gap-3 shadow-sm">
-                         <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                         <span className="text-xs font-bold text-gray-700">{p.method}</span>
-                         <span className="text-xs font-black text-gray-900">{fmt(p.amount)}</span>
-                       </div>
-                     ))}
-                   </div>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    Phương thức thanh toán
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    {bill?.payments?.map((payment, index) => (
+                      <div
+                        key={`${payment.method}-${index}`}
+                        className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-2 shadow-sm"
+                      >
+                        <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                        <span className="text-xs font-bold text-gray-700">{payment.method}</span>
+                        <span className="text-xs font-black text-gray-900">
+                          {fmt(payment.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
           </div>
 
-          <div className="shrink-0 p-8 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-            <button className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm">
-              <Download className="w-4 h-4" /> Xuất PDF
+          <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-gray-50/50 p-8">
+            <button className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3 text-xs font-black uppercase tracking-widest text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900">
+              <Download className="h-4 w-4" /> Xuất PDF
             </button>
+
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm">
-                <Printer className="w-4 h-4" /> In hóa đơn
+              <button className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3 text-xs font-black uppercase tracking-widest text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900">
+                <Printer className="h-4 w-4" /> In hóa đơn
               </button>
-              <button 
+
+              <button
                 onClick={onClose}
-                className="px-10 py-3 bg-gray-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-gray-900/10 active:scale-95"
+                className="rounded-2xl bg-gray-900 px-10 py-3 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-gray-900/10 transition-all hover:bg-black active:scale-95"
               >
                 Đóng
               </button>
@@ -237,12 +347,12 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
 function InfoItem({ icon: Icon, label, value }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-lg bg-gold-50 flex items-center justify-center text-gold-600">
-        <Icon className="w-4 h-4" />
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-50 text-gold-600">
+        <Icon className="h-4 w-4" />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{label}</p>
-        <p className="text-sm font-bold text-gray-900 truncate">{value}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</p>
+        <p className="truncate text-sm font-bold text-gray-900">{value}</p>
       </div>
     </div>
   );
@@ -250,9 +360,14 @@ function InfoItem({ icon: Icon, label, value }) {
 
 function SummaryLine({ label, value, isDiscount }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{label}</span>
-      <span className={clsx("text-sm font-black tabular-nums", isDiscount ? "text-red-500" : "text-gray-900")}>
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-bold uppercase tracking-widest text-gray-500">{label}</span>
+      <span
+        className={clsx(
+          'tabular-nums text-sm font-black',
+          isDiscount ? 'text-red-500' : 'text-gray-900'
+        )}
+      >
         {value}
       </span>
     </div>

@@ -67,6 +67,9 @@ export const orderApi = {
   getOrder: (orderId) =>
     apiClient.get(`/orders/${orderId}`),
 
+  getBillsByOrderId: (orderId) =>
+    apiClient.get(`/orders/${orderId}/bills`),
+
   /**
    * Gán khách hàng vào một đơn hàng.
    * BE endpoint: PUT /api/v1/orders/{orderId}/customer

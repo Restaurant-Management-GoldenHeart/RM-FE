@@ -18,6 +18,7 @@ import StaffPosPage from './pages/StaffPosPage';
 import KitchenPage from './pages/KitchenPage';
 import InventoryPage from './pages/InventoryPage';
 import InventoryHistoryPage from './pages/InventoryHistoryPage';
+import PayOsResultPage from './pages/PayOsResultPage';
 
 // ─── ROLE GUARD ───────────────────────────────────────────────────────────────
 function RoleGuard({ allowedRoles, children }) {
@@ -58,6 +59,8 @@ function AppRoutes() {
     <Routes>
       {/* Public */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/payment-success" element={<PayOsResultPage variant="success" />} />
+      <Route path="/payment-cancel" element={<PayOsResultPage variant="cancel" />} />
 
       {/* Protected — Sidebar Layout */}
       <Route element={<MainLayout />}>

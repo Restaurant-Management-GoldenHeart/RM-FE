@@ -101,6 +101,21 @@ export const paymentApi = {
    */
   addPayment: (billId, amount, method = 'CASH') =>
     apiClient.post(`/bills/${billId}/payments`, { amount, method }),
+
+  createPayOsQr: (billId, payload = {}) =>
+    apiClient.post(`/bills/${billId}/payos/qr`, {
+      returnUrl: payload.returnUrl,
+      cancelUrl: payload.cancelUrl,
+    }),
+
+  getLatestPayOsQr: (billId) =>
+    apiClient.get(`/bills/${billId}/payos/qr`),
+
+  cancelPayOsQr: (billId, reason) =>
+    apiClient.post(`/bills/${billId}/payos/qr/cancel`, { reason }),
+
+  getPaymentGatewayTransaction: (transactionId) =>
+    apiClient.get(`/payment-gateways/transactions/${transactionId}`),
 };
 
 export default paymentApi;
