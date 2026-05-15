@@ -32,7 +32,7 @@ export const useInventory = () => {
 
   // --- State: Filter & Pagination ---
   const [keyword, setKeyword] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [lowStockOnly, setLowStockOnlyState] = useState(false);
   const [page, setPage] = useState(0);
   const size = 10;
 
@@ -70,11 +70,29 @@ export const useInventory = () => {
   });
 
   const items = itemsRes?.data?.content || [];
+  const currentPage = itemsRes?.data?.page ?? 0;
+  const totalPages = itemsRes?.data?.totalPages ?? 0;
+  const totalElements = itemsRes?.data?.totalElements ?? 0;
   const pagination = {
-    page: itemsRes?.data?.number || 0,
-    totalPages: itemsRes?.data?.totalPages || 0,
-    totalElements: itemsRes?.data?.totalElements || 0,
+    page: currentPage,
+    totalPages,
+    totalElements,
+    start: totalElements === 0 ? 0 : currentPage * size + 1,
+    end: totalElements === 0 ? 0 : Math.min((currentPage + 1) * size, totalElements),
   };
+
+  useEffect(() => {
+    if (totalPages === 0) {
+      if (page !== 0) {
+        setPage(0);
+      }
+      return;
+    }
+
+    if (page > totalPages - 1) {
+      setPage(totalPages - 1);
+    }
+  }, [page, totalPages]);
 
   // 3. Thống kê tổng quan
   const { data: summaryRes } = useQuery({
@@ -141,6 +159,13 @@ export const useInventory = () => {
   const handleSearch = (val) => {
     setKeyword(val);
     setPage(0);
+  };
+
+  const setLowStockOnly = (valueOrUpdater) => {
+    setPage(0);
+    setLowStockOnlyState((currentValue) =>
+      typeof valueOrUpdater === 'function' ? valueOrUpdater(currentValue) : valueOrUpdater
+    );
   };
 
   const handleBranchChange = (branchId) => {

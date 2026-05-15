@@ -10,6 +10,7 @@ import { MenuFormModal } from '../components/menu/MenuFormModal';
 import { DeleteConfirmModal } from '../components/menu/DeleteConfirmModal';
 import { CategoryFormModal } from '../components/menu/CategoryFormModal';
 import MenuMobileList from '../components/menu/MenuMobileList';
+import PaginationBar from '../components/common/PaginationBar';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import PortalFAB from '../components/PortalFAB';
 import { Plus, FolderPlus, UtensilsCrossed } from 'lucide-react';
@@ -126,6 +127,20 @@ export default function MenuPage() {
             />
           </div>
         </header>
+
+        {isMobile && pagination.totalPages > 1 ? (
+          <div className="px-4 md:px-0">
+            <PaginationBar
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              totalElements={pagination.totalElements}
+              start={pagination.start}
+              end={pagination.end}
+              itemLabel="món"
+              onPageChange={setPage}
+            />
+          </div>
+        ) : null}
 
         {/* 3. Main Data View */}
         {isMobile ? (

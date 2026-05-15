@@ -505,9 +505,6 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
                   Dashboard phân tích cho {greetingName}
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
-                  Tổng hợp vận hành, tồn kho, bếp và tài chính theo đúng dữ liệu báo cáo từ backend hiện tại.
-                </p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
                 <span className="inline-flex items-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-3 py-2 shadow-sm">
@@ -575,14 +572,12 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <Panel
               title="Vận hành tức thời"
-              description="Các chỉ số này lấy trực tiếp từ dashboard report của backend theo chi nhánh đang chọn."
             >
               <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-black text-slate-900">Tình trạng bàn</p>
-                      <p className="text-sm text-slate-500">Tỷ lệ sử dụng và trạng thái từng nhóm bàn.</p>
                     </div>
                     <span className="rounded-full bg-gold-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-gold-700">
                       {formatNumber(totalTables)} bàn
@@ -619,7 +614,6 @@ export default function DashboardPage() {
 
             <Panel
               title="Danh mục nền"
-              description="Quy mô dữ liệu gốc của chi nhánh dùng để vận hành hằng ngày."
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <QuickStatLink icon={Users} label="Nhân sự hoạt động" value={formatNumber(dashboard?.totalEmployees)} to="/employees" />
@@ -632,7 +626,6 @@ export default function DashboardPage() {
 
           <Panel
             title="Sức khỏe tồn kho"
-            description="Ưu tiên xử lý các nguyên liệu dưới mức an toàn trước khi ảnh hưởng đến đơn đang phục vụ."
             action={
               <button
                 type="button"
@@ -716,7 +709,6 @@ export default function DashboardPage() {
           <section className="space-y-6">
             <Panel
               title="Phân tích tài chính"
-              description="Sử dụng revenue summary, revenue timeseries, payment breakdown và bill status summary từ backend."
               action={
                 <div className="flex flex-wrap items-center gap-2">
                   <FilterTabs value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
@@ -799,7 +791,6 @@ export default function DashboardPage() {
                   <div className="premium-card overflow-hidden">
                     <div className="border-b border-slate-100 px-6 py-5">
                       <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-400">Xu hướng doanh thu</p>
-                      <p className="mt-2 text-sm text-slate-500">So sánh doanh thu thuần và lợi nhuận theo dải thời gian đã chọn.</p>
                     </div>
                     <div className="p-6">
                       {sectionErrors.timeseries ? (
@@ -876,7 +867,6 @@ export default function DashboardPage() {
                   <div className="space-y-6">
                     <Panel
                       title="Cơ cấu thanh toán"
-                      description="Tỷ trọng phương thức thu tiền trong kỳ."
                     >
                       {sectionErrors.paymentBreakdown ? (
                         <EmptyState
@@ -932,7 +922,6 @@ export default function DashboardPage() {
 
                     <Panel
                       title="Tình trạng hóa đơn"
-                      description="Phân bổ trạng thái bill ở chi nhánh hiện tại."
                     >
                       {sectionErrors.billStatus ? (
                         <EmptyState

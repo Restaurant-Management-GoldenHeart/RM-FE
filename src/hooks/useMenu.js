@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { menuApi } from '../api/menuApi';
@@ -17,10 +17,14 @@ export function useMenu() {
   const { buildApiParams, selectedBranchId } = useBranchContext();
   
   // Local Filter & Pagination State
-  const [keyword, setKeyword] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [keyword, setKeywordState] = useState('');
+  const [categoryId, setCategoryIdState] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 10;
+
+  useEffect(() => {
+    setPage(0);
+  }, [selectedBranchId]);
 
   // 0. Metadata Fetching
   
@@ -128,12 +132,38 @@ export function useMenu() {
   // Derived Values
   const items = useMemo(() => data?.data?.content || [], [data]);
   const pagination = useMemo(() => ({
-    totalElements: data?.data?.totalElements || 0,
-    totalPages: data?.data?.totalPages || 0,
-    page: data?.data?.page || 0,
-    start: (data?.data?.page || 0) * pageSize + 1,
-    end: Math.min(((data?.data?.page || 0) + 1) * pageSize, data?.data?.totalElements || 0),
+    totalElements: data?.data?.totalElements ?? 0,
+    totalPages: data?.data?.totalPages ?? 0,
+    page: data?.data?.page ?? 0,
+    start: (data?.data?.totalElements ?? 0) === 0 ? 0 : (data?.data?.page ?? 0) * pageSize + 1,
+    end: (data?.data?.totalElements ?? 0) === 0
+      ? 0
+      : Math.min(((data?.data?.page ?? 0) + 1) * pageSize, data?.data?.totalElements ?? 0),
   }), [data]);
+
+  const handleKeywordChange = useCallback((value) => {
+    setKeywordState(value);
+    setPage(0);
+  }, []);
+
+  const handleCategoryChange = useCallback((value) => {
+    setCategoryIdState(value);
+    setPage(0);
+  }, []);
+
+  useEffect(() => {
+    const totalPages = data?.data?.totalPages ?? 0;
+    if (totalPages === 0) {
+      if (page !== 0) {
+        setPage(0);
+      }
+      return;
+    }
+
+    if (page > totalPages - 1) {
+      setPage(totalPages - 1);
+    }
+  }, [data, page]);
 
   // Ingredients used by recipes mapper
   const mappedIngredients = useMemo(() => {
@@ -158,8 +188,8 @@ export function useMenu() {
     ingredients: mappedIngredients,
 
     // Actions
-    setKeyword: (val) => { setKeyword(val); setPage(0); },
-    setCategoryId: (val) => { setCategoryId(val); setPage(0); },
+    setKeyword: handleKeywordChange,
+    setCategoryId: handleCategoryChange,
     setPage,
     refetch,
     

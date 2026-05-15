@@ -21,6 +21,7 @@ import RestockModal from '../components/inventory/RestockModal';
 import InventoryHistoryModal from '../components/inventory/InventoryHistoryModal';
 import LowStockAlert from '../components/inventory/LowStockAlert';
 import PremiumConfirmModal from '../components/PremiumConfirmModal';
+import PaginationBar from '../components/common/PaginationBar';
 
 // Utils
 const fmtNumber = (n) => new Intl.NumberFormat('vi-VN').format(n || 0);
@@ -271,12 +272,16 @@ export default function InventoryPage() {
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="px-6 md:px-8 py-6 border-t border-white flex flex-col md:flex-row items-center justify-between bg-white/40 gap-4">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Trang <span className="text-gray-900">{pagination.page + 1}</span> / <span className="text-gray-900">{pagination.totalPages}</span></p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => handlePageChange(Math.max(0, pagination.page - 1))} disabled={pagination.page === 0} aria-label="Previous page" className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 text-gray-500 disabled:opacity-30 hover:bg-gray-50 transition-colors"><ChevronLeft size={18} aria-hidden="true" /></button>
-                <button onClick={() => handlePageChange(Math.min(pagination.totalPages - 1, pagination.page + 1))} disabled={pagination.page >= pagination.totalPages - 1} aria-label="Next page" className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 text-gray-500 disabled:opacity-30 hover:bg-gray-50 transition-colors"><ChevronRightIcon size={18} aria-hidden="true" /></button>
-              </div>
+            <div className="border-t border-white bg-white/40 px-6 py-6 md:px-8">
+              <PaginationBar
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalElements={pagination.totalElements}
+                start={pagination.start}
+                end={pagination.end}
+                itemLabel="nguyên liệu"
+                onPageChange={handlePageChange}
+              />
             </div>
           )}
         </section>

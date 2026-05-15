@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useDeferredValue } from 'react';
+import React, { useState, useEffect, useDeferredValue, useRef } from 'react';
 import { Search, Filter, ChevronDown, X } from 'lucide-react';
 
 /**
@@ -8,11 +8,16 @@ import { Search, Filter, ChevronDown, X } from 'lucide-react';
 export function MenuFilterBar({ keyword, onSearch, categoryId, onCategoryChange, categories = [] }) {
   const [inputValue, setInputValue] = useState(keyword);
   const deferredKeyword = useDeferredValue(inputValue);
+  const onSearchRef = useRef(onSearch);
+
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
 
   // Sync deferred value to parent
   useEffect(() => {
-    onSearch(deferredKeyword);
-  }, [deferredKeyword, onSearch]);
+    onSearchRef.current?.(deferredKeyword);
+  }, [deferredKeyword]);
 
   const handleClear = () => {
     setInputValue('');
