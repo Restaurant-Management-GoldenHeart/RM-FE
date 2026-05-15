@@ -102,18 +102,35 @@ export const paymentApi = {
   addPayment: (billId, amount, method = 'CASH') =>
     apiClient.post(`/bills/${billId}/payments`, { amount, method }),
 
+  /**
+   * Tạo QR payOS cho bill đang mở.
+   *
+   * FE truyền returnUrl và cancelUrl theo từng giao dịch
+   * để checkout ở thiết bị khác vẫn quay về đúng trang kết quả.
+   */
   createPayOsQr: (billId, payload = {}) =>
     apiClient.post(`/bills/${billId}/payos/qr`, {
       returnUrl: payload.returnUrl,
       cancelUrl: payload.cancelUrl,
     }),
 
+  /**
+   * Lấy giao dịch payOS mới nhất của bill.
+   *
+   * Dùng khi mở lại modal thanh toán hoặc cần khôi phục một QR đang chờ.
+   */
   getLatestPayOsQr: (billId) =>
     apiClient.get(`/bills/${billId}/payos/qr`),
 
+  /**
+   * Hủy QR payOS đang chờ trước khi quay sang thu tiền thủ công.
+   */
   cancelPayOsQr: (billId, reason) =>
     apiClient.post(`/bills/${billId}/payos/qr/cancel`, { reason }),
 
+  /**
+   * Đọc chi tiết transaction payment gateway để polling đối soát.
+   */
   getPaymentGatewayTransaction: (transactionId) =>
     apiClient.get(`/payment-gateways/transactions/${transactionId}`),
 };

@@ -160,6 +160,15 @@ export default function BillHistorySection({ pageSize = 8 }) {
                           <span>{formatTime(bill.lastPaidAt)}</span>
                           <span>{bill.paymentMethods?.join(', ') || 'Chưa xác định phương thức'}</span>
                         </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-semibold text-slate-500">
+                          <span>
+                            Mở bàn: <span className="text-slate-700">{bill.openedByName || 'Không rõ'}</span>
+                          </span>
+                          <span>
+                            Tạo bill: <span className="text-slate-700">{bill.billCreatedByName || 'Không rõ'}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
 

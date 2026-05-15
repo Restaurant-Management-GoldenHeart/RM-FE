@@ -1,5 +1,15 @@
+/**
+ * Modal thanh toán của POS.
+ *
+ * File này gom nhiều side-effect:
+ * - preview bill, tax, discount và loyalty
+ * - tạo bill và thu tiền thủ công
+ * - tạo, polling, khôi phục và hủy giao dịch payOS
+ * - dọn dẹp state order, kitchen và table sau khi thanh toán xong
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import QRCode from 'qrcode';
 import {
   X,
   CheckCircle2,
@@ -167,6 +177,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const [customerLoading, setCustomerLoading] = useState(false);
   const [activeBill, setActiveBill] = useState(null);
   const [payOsTransaction, setPayOsTransaction] = useState(null);
+  const [payOsQrImageUrl, setPayOsQrImageUrl] = useState('');
   const [isPayOsSyncing, setIsPayOsSyncing] = useState(false);
   const [isCancellingPayOs, setIsCancellingPayOs] = useState(false);
   const [isSettlingPayOs, setIsSettlingPayOs] = useState(false);
@@ -182,6 +193,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const canApplyLoyalty = hasCustomer && currentTierRate > 0;
   const loyaltyApplied = canApplyLoyalty && applyLoyalty;
   const memberDiscountValue = loyaltyApplied ? Number(previewData?.loyaltyDiscount ?? 0) : 0;
+  // Session key dùng để khôi phục transaction payOS đang chờ khi đóng modal hoặc F5.
   const payOsSessionKey = useMemo(() => getPayOsSessionKey(order?.id), [order?.id]);
   const hasRecordedPayments = billHasRecordedPayments(activeBill);
 
@@ -234,6 +246,40 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     }
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!payOsTransaction?.qrCode) {
+      setPayOsQrImageUrl('');
+      return undefined;
+    }
+
+    QRCode.toDataURL(payOsTransaction.qrCode, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 320,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then((dataUrl) => {
+        if (!cancelled) {
+          setPayOsQrImageUrl(dataUrl);
+        }
+      })
+      .catch((error) => {
+        console.error('[PaymentModal] cannot render payOS QR locally', error);
+        if (!cancelled) {
+          setPayOsQrImageUrl('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payOsTransaction?.qrCode]);
+
   const hydrateBillSnapshot = useCallback((bill) => {
     if (!bill) return;
 
@@ -244,10 +290,12 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     setPreviewData(buildPreviewDataFromBill(bill, order));
   }, [order]);
 
+  // Tìm bill chưa PAID mới nhất của order, sau đó tìm transaction payOS gắn với bill đó.
+  // Nếu transaction vẫn PENDING thì modal giữ nguyên luồng payOS thay vì tạo session mới.
   const restoreExistingPayOsContext = useCallback(async (options = {}) => {
     if (!order?.id) return null;
 
-    const { silent = false, openCheckout = false } = options;
+    const { silent = false } = options;
     if (!silent) {
       setIsPayOsSyncing(true);
     }
@@ -280,9 +328,6 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       if (restoredTransaction.status === 'PENDING') {
         setMethod('PAYOS');
         savePayOsSession(restoredTransaction.billId, restoredTransaction.transactionId);
-        if (openCheckout && restoredTransaction.checkoutUrl) {
-          openPayOsCheckout(restoredTransaction.checkoutUrl);
-        }
       } else if (restoredTransaction.status !== 'PAID') {
         clearPayOsSession();
       }
@@ -298,11 +343,13 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
         setIsPayOsSyncing(false);
       }
     }
-  }, [clearPayOsSession, hydrateBillSnapshot, openPayOsCheckout, order?.id, savePayOsSession]);
+  }, [clearPayOsSession, hydrateBillSnapshot, order?.id, savePayOsSession]);
 
   const fetchPreview = useCallback(async () => {
     if (!order?.id || !isOpen) return;
 
+    // Khi bill đã có payment hoặc đang tồn tại QR payOS pending,
+    // công thức giá tiền phải được đóng băng theo snapshot đã chốt.
     if (pricingLockRef.current) {
       setPreviewData(lockedPreviewDataRef.current);
       return;
@@ -492,6 +539,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     const shouldLockPricing = hasPendingPayOs || hasRecordedPayments;
     const lockedPreview = activeBill ? buildPreviewDataFromBill(activeBill, order) : null;
 
+    // Khóa input ngay khi bill đã bắt đầu có nghĩa vụ thu tiền.
     pricingLockRef.current = shouldLockPricing;
     lockedPreviewDataRef.current = lockedPreview;
 
@@ -500,6 +548,8 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     }
   }, [activeBill, hasPendingPayOs, hasRecordedPayments, order]);
 
+  // Ưu tiên dùng lại bill đang mở để tránh tạo bill trùng.
+  // Khi bill đã có payment thì không được phép tính lại tổng tiền nữa.
   const createOrReuseBill = useCallback(async (paymentMethod) => {
     const existingContext = await restoreExistingPayOsContext({ silent: true });
     const existingBill = existingContext?.bill ?? activeBill;
@@ -527,6 +577,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     return nextBill;
   }, [activeBill, discount, hydrateBillSnapshot, loyaltyApplied, order?.id, restoreExistingPayOsContext, taxRate]);
 
+  // Sau khi đã thu tiền xong, cần dọn dẹp đồng bộ trên tất cả store liên quan.
   const finalizeSuccessfulPayment = useCallback(async () => {
     const tableStore = useTableStore.getState();
 
@@ -554,6 +605,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     onClose();
   }, [clearPayOsSession, onClose, order?.id, table?.id]);
 
+  // Polling transaction payOS là lớp bổ sung cho webhook để modal cập nhật UI ngay lập tức.
   const syncPayOsTransaction = useCallback(async (transactionId, options = {}) => {
     if (!transactionId) return null;
 
@@ -681,6 +733,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     }
   }, [activeBill?.id, clearPayOsSession, hasPendingPayOs, payOsTransaction?.billId]);
 
+  // Luồng thu tiền thủ công. Nếu bill đã có thanh toán một phần thì chỉ thu phần còn lại.
   const executeManualPayment = useCallback(async () => {
     const resolvedMethod = METHOD_MAP[method] ?? 'CASH';
 
@@ -735,9 +788,10 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     }
   }, [amountDueNow, clearPayOsSession, createOrReuseBill, finalizeSuccessfulPayment, method, restoreExistingPayOsContext]);
 
+  // Luồng tạo hoặc khôi phục QR payOS cho bill đang mở.
   const executePayOsPayment = useCallback(async () => {
     if (hasPendingPayOs) {
-      toast('QR PayOS dang cho thanh toan. Mo lai trang checkout hoac huy QR cu.');
+      toast('QR PayOS dang cho thanh toan. Hien QR tren man hinh hoac huy QR cu neu can.');
       return;
     }
 
@@ -758,12 +812,11 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       setPayOsTransaction(nextTransaction);
       setMethod('PAYOS');
       savePayOsSession(bill.id, nextTransaction.transactionId);
-      toast.success('Da tao QR PayOS.');
-      openPayOsCheckout(nextTransaction.checkoutUrl);
+      toast.success('Da tao ma QR PayOS tren man hinh.');
     } catch (error) {
       const errorMessage = parseApiMessage(error, 'Tao QR PayOS that bai.');
       if (error?.response?.status === 409 && errorMessage.includes('active payOS QR request')) {
-        const restored = await restoreExistingPayOsContext({ silent: true, openCheckout: true });
+        const restored = await restoreExistingPayOsContext({ silent: true });
         if (restored?.transaction?.status === 'PENDING') {
           toast('Bill dang co QR PayOS cho nay. Toi da khoi phuc lai giao dich dang cho.');
           return;
@@ -778,12 +831,12 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     buildPayOsResultUrl,
     createOrReuseBill,
     hasPendingPayOs,
-    openPayOsCheckout,
     payOsTransaction?.transactionId,
     restoreExistingPayOsContext,
     savePayOsSession,
   ]);
 
+  // Nút chính của modal đi qua đây để quyết định dùng luồng thủ công hay payOS.
   const executePayment = async () => {
     if (isPaying || isPreviewLoading || isSettlingPayOs) return;
     if (hasUnservedItems) {
@@ -1119,7 +1172,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                 </div>
               </div>
 
-              {(isPayOsMode || payOsTransaction) && (
+              {isPayOsMode && payOsTransaction && (
                 <div className="rounded-[1.75rem] border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-amber-50 p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1128,122 +1181,111 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                           'inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em]',
                           getPayOsStatusClasses(payOsStatus)
                         )}>
-                          {PAYOS_STATUS_LABELS[payOsStatus] || 'San sang tao QR'}
+                          {PAYOS_STATUS_LABELS[payOsStatus] || 'Dang cho thanh toan'}
                         </span>
                         {isPayOsSyncing && <Loader2 size={12} className="animate-spin text-sky-600" />}
                       </div>
                       <h3 className="mt-3 text-sm font-black uppercase tracking-[0.18em] text-slate-900">PayOS</h3>
-                      <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-600">
-                        {hasPendingPayOs
-                          ? 'QR dang cho khach thanh toan. POS se tu dong dong bo ngay khi webhook ve.'
-                          : 'Nhan tao QR de sinh payment link PayOS cho bill hien tai ma khong anh huong den luong thanh toan cu.'}
-                      </p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg">
                       <ExternalLink size={18} />
                     </div>
                   </div>
 
-                  {payOsTransaction ? (
-                    <>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
-                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Bill</p>
-                          <p className="mt-2 text-sm font-black text-slate-900">#{payOsTransaction.billId}</p>
-                        </div>
-                        <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
-                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">So tien</p>
-                          <p className="mt-2 text-sm font-black text-slate-900">{formatVND(payOsTransaction.requestedAmount)}</p>
-                        </div>
-                        <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
-                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Het han</p>
-                          <p className="mt-2 text-sm font-black text-slate-900">{formatDateTime(payOsTransaction.expiredAt)}</p>
-                        </div>
-                        <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
-                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Transaction</p>
-                          <p className="mt-2 text-sm font-black text-slate-900">#{payOsTransaction.transactionId}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Checkout URL</p>
-                        <p className="mt-2 break-all text-[11px] font-semibold leading-relaxed text-slate-700">
-                          {payOsTransaction.checkoutUrl || 'PayOS chua tra ve checkout URL'}
-                        </p>
-                        {payOsTransaction.providerMessage ? (
-                          <p className="mt-2 text-[11px] font-semibold text-slate-500">
-                            {payOsTransaction.providerMessage}
-                          </p>
-                        ) : null}
-                        {payOsTransaction.qrCode ? (
-                          <p className="mt-2 text-[11px] font-semibold text-emerald-700">
-                            QR payload da san sang. Mo trang checkout de hien QR cho khach.
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        <button
-                          onClick={() => openPayOsCheckout(payOsTransaction.checkoutUrl)}
-                          disabled={!payOsTransaction.checkoutUrl}
-                          className={cn(
-                            'inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm',
-                            payOsTransaction.checkoutUrl
-                              ? 'bg-slate-950 text-white'
-                              : 'cursor-not-allowed bg-gray-100 text-gray-400'
-                          )}
-                        >
-                          <ExternalLink size={14} />
-                          Mo checkout
-                        </button>
-                        <button
-                          onClick={copyPayOsCheckoutUrl}
-                          disabled={!payOsTransaction.checkoutUrl}
-                          className={cn(
-                            'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
-                            payOsTransaction.checkoutUrl
-                              ? 'border-slate-200 bg-white text-slate-700'
-                              : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
-                          )}
-                        >
-                          <Copy size={14} />
-                          Copy link
-                        </button>
-                        <button
-                          onClick={() => syncPayOsTransaction(payOsTransaction.transactionId)}
-                          disabled={isPayOsSyncing || isSettlingPayOs}
-                          className={cn(
-                            'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
-                            isPayOsSyncing || isSettlingPayOs
-                              ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
-                              : 'border-sky-200 bg-sky-50 text-sky-700'
-                          )}
-                        >
-                          {isPayOsSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                          Lam moi
-                        </button>
-                        <button
-                          onClick={handleCancelPayOs}
-                          disabled={!hasPendingPayOs || isCancellingPayOs || isSettlingPayOs}
-                          className={cn(
-                            'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
-                            !hasPendingPayOs || isCancellingPayOs || isSettlingPayOs
-                              ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
-                              : 'border-rose-200 bg-rose-50 text-rose-700'
-                          )}
-                        >
-                          {isCancellingPayOs ? <Loader2 size={14} className="animate-spin" /> : <CircleAlert size={14} />}
-                          Huy QR
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-white/80 px-4 py-3">
-                      <p className="text-[11px] font-semibold leading-relaxed text-slate-600">
-                        Chua co transaction PayOS. Nhan nut tao QR o cuoi modal de sinh checkout link cho bill nay.
-                      </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
+                      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Bill</p>
+                      <p className="mt-2 text-sm font-black text-slate-900">#{payOsTransaction.billId}</p>
                     </div>
-                  )}
+                    <div className="rounded-2xl border border-white bg-white/80 px-3 py-3 shadow-sm">
+                      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Het han</p>
+                      <p className="mt-2 text-sm font-black text-slate-900">{formatDateTime(payOsTransaction.expiredAt)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-sm">
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">QR PayOS</p>
+                      <div className="mt-3 flex min-h-[212px] items-center justify-center rounded-[1.25rem] border border-dashed border-slate-200 bg-slate-50 p-3">
+                        {payOsQrImageUrl ? (
+                          <img
+                            src={payOsQrImageUrl}
+                            alt={`PayOS QR bill ${payOsTransaction.billId}`}
+                            className="h-full w-full max-w-[180px] rounded-xl bg-white object-contain p-2"
+                          />
+                        ) : payOsTransaction.qrCode ? (
+                          <div className="flex flex-col items-center gap-2 text-center text-slate-500">
+                            <Loader2 size={18} className="animate-spin" />
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em]">
+                              Dang tao QR
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-center text-slate-400">
+                            <QrCode size={22} />
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em]">
+                              Chua co du lieu QR
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button
+                      onClick={() => openPayOsCheckout(payOsTransaction.checkoutUrl)}
+                      disabled={!payOsTransaction.checkoutUrl}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm',
+                        payOsTransaction.checkoutUrl
+                          ? 'bg-slate-950 text-white'
+                          : 'cursor-not-allowed bg-gray-100 text-gray-400'
+                      )}
+                    >
+                      <ExternalLink size={14} />
+                      Mo trang payOS
+                    </button>
+                    <button
+                      onClick={copyPayOsCheckoutUrl}
+                      disabled={!payOsTransaction.checkoutUrl}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
+                        payOsTransaction.checkoutUrl
+                          ? 'border-slate-200 bg-white text-slate-700'
+                          : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                      )}
+                    >
+                      <Copy size={14} />
+                      Copy link
+                    </button>
+                    <button
+                      onClick={() => syncPayOsTransaction(payOsTransaction.transactionId)}
+                      disabled={isPayOsSyncing || isSettlingPayOs}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
+                        isPayOsSyncing || isSettlingPayOs
+                          ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                          : 'border-sky-200 bg-sky-50 text-sky-700'
+                      )}
+                    >
+                      {isPayOsSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      Lam moi
+                    </button>
+                    <button
+                      onClick={handleCancelPayOs}
+                      disabled={!hasPendingPayOs || isCancellingPayOs || isSettlingPayOs}
+                      className={cn(
+                        'inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
+                        !hasPendingPayOs || isCancellingPayOs || isSettlingPayOs
+                          ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                          : 'border-rose-200 bg-rose-50 text-rose-700'
+                      )}
+                    >
+                      {isCancellingPayOs ? <Loader2 size={14} className="animate-spin" /> : <CircleAlert size={14} />}
+                      Huy QR
+                    </button>
+                  </div>
                 </div>
               )}
 

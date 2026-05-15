@@ -35,6 +35,15 @@ import {
   YAxis,
 } from 'recharts';
 
+/**
+ * Trang dashboard tổng hợp cho quản lý.
+ *
+ * Trang này đóng vai trò bộ điều phối báo cáo:
+ * - đồng bộ filter branch và thời gian
+ * - gọi các API summary, timeseries, payment breakdown và bill history
+ * - biến đổi dữ liệu thành card, chart và bảng để hiển thị
+ */
+
 const ROLE_CONFIG = {
   ADMIN: { label: 'Quản trị viên', badge: 'bg-gold-100 text-gold-800 border-gold-200' },
   MANAGER: { label: 'Quản lý', badge: 'bg-blue-100 text-blue-800 border-blue-200' },

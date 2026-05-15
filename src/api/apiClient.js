@@ -5,6 +5,15 @@
  */
 import axios from 'axios';
 
+/**
+ * Lớp hạ tầng HTTP dùng chung cho frontend.
+ *
+ * Quy ước quan trọng:
+ * - access token được lấy từ localStorage và gắn vào Authorization header
+ * - refresh token nằm trong HttpOnly cookie nên cần withCredentials=true
+ * - lỗi 401 được xử lý tập trung để đưa user về trang login
+ */
+
 // --- CONSTANTS ---
 const BASE_URL = '/api/v1';
 const ACCESS_TOKEN_KEY = 'accessToken';
@@ -13,6 +22,7 @@ const ACCESS_TOKEN_KEY = 'accessToken';
 const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Bật cookie kèm theo request để backend nhìn thấy refresh-token cookie nếu có.
   withCredentials: true,
   // Tự động bỏ qua các tham số rỗng (null, undefined, "") 
   // để bảo vệ Backend khỏi lỗi Reflection naming.
@@ -40,6 +50,7 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
+      // Mọi endpoint protected đều sử dụng chung một quy ước Bearer token.
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -52,6 +63,8 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   async (error) => {
     const originalRequest = error.config;
+    // Hiện tại FE chưa tự refresh token ngay tại interceptor.
+    // Vì vậy 401 sẽ được xem như phiên đăng nhập không còn hợp lệ.
 
     // Lỗi 401: Hết hạn token
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -78,6 +91,7 @@ apiClient.interceptors.response.use(
     }
 
     // Xử lý thông báo lỗi từ Backend (Spring Boot Validation)
+    // Giữ lại map validation errors để form component có thể hiển thị theo từng field.
     const responseData = error.response?.data;
     if (responseData && responseData.errors) {
        // Ghép các lỗi validation thành 1 chuỗi hoặc để Hook xử lý

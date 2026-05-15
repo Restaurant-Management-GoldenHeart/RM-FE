@@ -6,6 +6,13 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/useAuthStore';
 
+/**
+ * File này giữ vai trò khung xương của frontend:
+ * - khởi tạo auth state khi app mount
+ * - quản lý route theo role
+ * - đặt toast provider tại root để mọi trang đều dùng chung
+ */
+
 import MainLayout from './components/layout/MainLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -50,6 +57,7 @@ function AppRoutes() {
     );
   }
 
+  // Mỗi role có một trang nhà riêng để user vào đúng luồng vận hành ngay sau login.
   const homeRedirect =
     ['ADMIN', 'MANAGER'].includes(role) ? '/dashboard' :
       role === 'KITCHEN' ? '/kitchen' :
