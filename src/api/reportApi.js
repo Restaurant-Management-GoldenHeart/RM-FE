@@ -123,6 +123,16 @@ export const reportApi = {
    */
   getBillDetail: (billId) =>
     apiClient.get(`/bills/${billId}`),
+
+  /**
+   * 8. Download Bill Invoice PDF
+   * GET /bills/{id}/invoice.pdf
+   */
+  downloadBillInvoicePdf: (billId) =>
+    apiClient.get(`/bills/${billId}/invoice.pdf`, {
+      responseType: 'blob',
+      headers: { Accept: 'application/pdf' },
+    }),
 };
 
 export default reportApi;

@@ -48,6 +48,11 @@ export const removeToken = () => localStorage.removeItem(ACCESS_TOKEN_KEY);
 // 1. Request Interceptor: Gắn token vào header
 apiClient.interceptors.request.use(
   (config) => {
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+    }
+
     const token = getToken();
     if (token) {
       // Mọi endpoint protected đều sử dụng chung một quy ước Bearer token.

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   X,
   Receipt,
@@ -12,11 +13,14 @@ import {
   Download,
   Loader2,
   AlertCircle,
-  Printer,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { reportApi } from '../../api/reportApi';
 import { orderApi } from '../../api/posApi';
+import { downloadBlobAsFile } from '../../utils/fileDownload';
+
+const wait = (milliseconds) =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
 const fmt = (value) =>
   new Intl.NumberFormat('vi-VN', {
@@ -27,6 +31,20 @@ const fmt = (value) =>
 const toSafeNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatPercent = (rate) => {
+  const numericRate = Number(rate ?? 0);
+  if (!Number.isFinite(numericRate) || numericRate <= 0) return '0%';
+  return `${numericRate % 1 === 0 ? numericRate.toFixed(0) : numericRate.toFixed(1)}%`;
+};
+
+const deriveTaxRateFromBill = (bill) => {
+  const subtotal = toSafeNumber(bill?.subtotal);
+  const tax = toSafeNumber(bill?.tax);
+
+  if (subtotal <= 0 || tax <= 0) return 0;
+  return Number(((tax / subtotal) * 100).toFixed(2));
 };
 
 const normalizeOrderItem = (item) => {
@@ -47,12 +65,13 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
   const [bill, setBill] = useState(null);
   const [order, setOrder] = useState(null);
   const [error, setError] = useState(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (isOpen && billId) {
-      fetchData();
+      void fetchData();
     }
-  }, [isOpen, billId]);
+  }, [billId, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,10 +109,51 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!billId || bill?.status !== 'PAID') {
+      toast.error('Chỉ tải được hóa đơn PDF khi bill đã thanh toán.');
+      return;
+    }
+
+    setIsDownloadingPdf(true);
+    try {
+      let downloaded = false;
+
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        try {
+          const blob = await reportApi.downloadBillInvoicePdf(billId);
+          downloadBlobAsFile(blob, `hoa-don-${billId}.pdf`);
+          toast.success('Đã tải hóa đơn PDF.');
+          downloaded = true;
+          break;
+        } catch (innerError) {
+          if (innerError?.response?.status === 409 && attempt < 5) {
+            await wait(700);
+            continue;
+          }
+          throw innerError;
+        }
+      }
+
+      if (!downloaded) {
+        toast.error('Không tải được hóa đơn PDF.');
+      }
+    } catch (downloadError) {
+      console.error('Failed to download bill invoice PDF:', downloadError);
+      toast.error('Không tải được hóa đơn PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const displayTime = order?.closedAt || bill?.lastPaidAt;
   const itemsList = (order?.orderItems || order?.items || []).map(normalizeOrderItem);
+  const taxRateLabel = `VAT (${formatPercent(deriveTaxRateFromBill(bill))})`;
+  const memberRateLabel = `Member (${formatPercent(bill?.appliedTierDiscountRate)})`;
+  const manualDiscountValue = toSafeNumber(bill?.manualDiscount);
+  const loyaltyDiscountValue = toSafeNumber(bill?.loyaltyDiscount);
 
   return createPortal(
     <AnimatePresence>
@@ -150,7 +210,7 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
                 <AlertCircle className="h-12 w-12" />
                 <p className="font-bold">{error}</p>
                 <button
-                  onClick={fetchData}
+                  onClick={() => void fetchData()}
                   className="rounded-xl bg-red-50 px-6 py-2 text-xs font-bold uppercase text-red-600 hover:bg-red-100"
                 >
                   Thử lại
@@ -274,12 +334,21 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
                   <div className="flex justify-end">
                     <div className="w-full max-w-xs space-y-3">
                       <SummaryLine label="Tạm tính" value={fmt(bill?.subtotal)} />
-                      <SummaryLine label="Thuế (VAT)" value={fmt(bill?.tax)} />
-                      <SummaryLine
-                        label="Giảm giá"
-                        value={`-${fmt(bill?.discount)}`}
-                        isDiscount
-                      />
+                      <SummaryLine label={taxRateLabel} value={fmt(bill?.tax)} />
+                      {manualDiscountValue > 0 ? (
+                        <SummaryLine
+                          label="Giảm giá"
+                          value={`-${fmt(manualDiscountValue)}`}
+                          isDiscount
+                        />
+                      ) : null}
+                      {loyaltyDiscountValue > 0 ? (
+                        <SummaryLine
+                          label={memberRateLabel}
+                          value={`-${fmt(loyaltyDiscountValue)}`}
+                          isDiscount
+                        />
+                      ) : null}
 
                       <div className="my-4 h-px bg-gray-100" />
 
@@ -320,22 +389,26 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
           </div>
 
           <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-gray-50/50 p-8">
-            <button className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3 text-xs font-black uppercase tracking-widest text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900">
-              <Download className="h-4 w-4" /> Xuất PDF
+            <button
+              onClick={handleDownloadPdf}
+              disabled={loading || isDownloadingPdf || bill?.status !== 'PAID'}
+              className={clsx(
+                'flex items-center gap-2 rounded-2xl border px-6 py-3 text-xs font-black uppercase tracking-widest shadow-sm transition-all',
+                loading || isDownloadingPdf || bill?.status !== 'PAID'
+                  ? 'cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              {isDownloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Tải hóa đơn PDF
             </button>
 
-            <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3 text-xs font-black uppercase tracking-widest text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900">
-                <Printer className="h-4 w-4" /> In hóa đơn
-              </button>
-
-              <button
-                onClick={onClose}
-                className="rounded-2xl bg-gray-900 px-10 py-3 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-gray-900/10 transition-all hover:bg-black active:scale-95"
-              >
-                Đóng
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="rounded-2xl bg-gray-900 px-10 py-3 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-gray-900/10 transition-all hover:bg-black active:scale-95"
+            >
+              Đóng
+            </button>
           </div>
         </motion.div>
       </div>

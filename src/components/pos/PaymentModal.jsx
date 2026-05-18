@@ -36,9 +36,11 @@ import { useKitchenStore } from '../../store/useKitchenStore';
 import orderApi from '../../services/api/orderApi';
 import paymentApi from '../../services/api/paymentApi';
 import tableApi from '../../services/api/tableApi';
+import { reportApi } from '../../api/reportApi';
 import { customerTierApi } from '../../api/customerTierApi';
 import { customerApi } from '../../api/customerApi';
 import { cn } from '../../utils/cn';
+import { downloadBlobAsFile } from '../../utils/fileDownload';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);
@@ -84,11 +86,16 @@ const PAYOS_STATUS_LABELS = {
 
 const PAYOS_POLL_INTERVAL = 3000;
 const PAYOS_SESSION_PREFIX = 'goldenheart-payos-order-';
+const INVOICE_DOWNLOAD_RETRY_LIMIT = 5;
+const INVOICE_DOWNLOAD_RETRY_DELAY = 700;
 
 const parseApiMessage = (error, fallbackMessage) =>
   error?.response?.data?.message ||
   error?.message ||
   fallbackMessage;
+
+const wait = (milliseconds) =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
 const isPayOsTerminalStatus = (status) =>
   ['PAID', 'CANCELLED', 'EXPIRED', 'FAILED'].includes(status);
@@ -181,6 +188,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
   const [isPayOsSyncing, setIsPayOsSyncing] = useState(false);
   const [isCancellingPayOs, setIsCancellingPayOs] = useState(false);
   const [isSettlingPayOs, setIsSettlingPayOs] = useState(false);
+  const [shouldDownloadInvoicePdf, setShouldDownloadInvoicePdf] = useState(false);
   const pricingLockRef = useRef(false);
   const lockedPreviewDataRef = useRef(null);
 
@@ -243,6 +251,36 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     const popup = window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
     if (!popup) {
       toast.error('Trinh duyet da chan popup. Dung nut copy link de mo thu cong.');
+    }
+  }, []);
+
+  const downloadInvoicePdfForBill = useCallback(async (billId, options = {}) => {
+    if (!billId) return;
+
+    const { silentSuccess = false, maxAttempts = INVOICE_DOWNLOAD_RETRY_LIMIT } = options;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const blob = await reportApi.downloadBillInvoicePdf(billId);
+        downloadBlobAsFile(blob, `hoa-don-${billId}.pdf`);
+        if (!silentSuccess) {
+          toast.success('Da tai hoa don PDF.');
+        }
+        return true;
+      } catch (error) {
+        const shouldRetry =
+          error?.response?.status === 409 &&
+          attempt < maxAttempts;
+
+        if (shouldRetry) {
+          await wait(INVOICE_DOWNLOAD_RETRY_DELAY);
+          continue;
+        }
+
+        console.error('[PaymentModal] download invoice PDF failed', error);
+        toast.error(parseApiMessage(error, 'Khong tai duoc hoa don PDF.'));
+        return false;
+      }
     }
   }, []);
 
@@ -430,6 +468,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     if (isOpen) {
       setApplyLoyalty(false);
       setDiscount(0);
+      setShouldDownloadInvoicePdf(false);
     }
   }, [isOpen]);
 
@@ -687,6 +726,9 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
 
     (async () => {
       try {
+        if (shouldDownloadInvoicePdf && (payOsTransaction?.billId ?? activeBill?.id)) {
+          await downloadInvoicePdfForBill(payOsTransaction?.billId ?? activeBill?.id, { silentSuccess: true });
+        }
         await finalizeSuccessfulPayment();
       } catch (error) {
         console.error('[PaymentModal] finalize payOS payment failed', error);
@@ -695,7 +737,16 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
         setIsSettlingPayOs(false);
       }
     })();
-  }, [finalizeSuccessfulPayment, isOpen, isSettlingPayOs, payOsTransaction?.status]);
+  }, [
+    activeBill?.id,
+    downloadInvoicePdfForBill,
+    finalizeSuccessfulPayment,
+    isOpen,
+    isSettlingPayOs,
+    payOsTransaction?.billId,
+    payOsTransaction?.status,
+    shouldDownloadInvoicePdf,
+  ]);
 
   const copyPayOsCheckoutUrl = useCallback(async () => {
     if (!payOsTransaction?.checkoutUrl) {
@@ -749,7 +800,11 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
         return;
       }
 
-      await paymentApi.addPayment(bill.id, paymentAmount, resolvedMethod);
+      const paymentResponse = await paymentApi.addPayment(bill.id, paymentAmount, resolvedMethod);
+      const paidBill = paymentResponse?.data ?? bill;
+      if (shouldDownloadInvoicePdf && paidBill?.status === 'PAID') {
+        await downloadInvoicePdfForBill(paidBill.id, { silentSuccess: true });
+      }
       toast.success('Thanh toan thanh cong!');
       clearPayOsSession();
       await finalizeSuccessfulPayment();
@@ -762,7 +817,11 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
 
         if (existingBill?.id && remainingAmount > 0) {
           try {
-            await paymentApi.addPayment(existingBill.id, remainingAmount, resolvedMethod);
+            const paymentResponse = await paymentApi.addPayment(existingBill.id, remainingAmount, resolvedMethod);
+            const paidBill = paymentResponse?.data ?? existingBill;
+            if (shouldDownloadInvoicePdf && paidBill?.status === 'PAID') {
+              await downloadInvoicePdfForBill(paidBill.id, { silentSuccess: true });
+            }
             toast.success('Thanh toan thanh cong!');
             clearPayOsSession();
             await finalizeSuccessfulPayment();
@@ -786,7 +845,16 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     } finally {
       setIsPaying(false);
     }
-  }, [amountDueNow, clearPayOsSession, createOrReuseBill, finalizeSuccessfulPayment, method, restoreExistingPayOsContext]);
+  }, [
+    amountDueNow,
+    clearPayOsSession,
+    createOrReuseBill,
+    downloadInvoicePdfForBill,
+    finalizeSuccessfulPayment,
+    method,
+    restoreExistingPayOsContext,
+    shouldDownloadInvoicePdf,
+  ]);
 
   // Luồng tạo hoặc khôi phục QR payOS cho bill đang mở.
   const executePayOsPayment = useCallback(async () => {
@@ -939,12 +1007,6 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
               </div>
             )}
 
-            {previewData?.loyaltyDiscount > 0 && (
-              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-emerald-600">
-                <span>Uu dai hoi vien</span>
-                <span className="font-black">-{formatVND(previewData.loyaltyDiscount)}</span>
-              </div>
-            )}
             {hasRecordedPayments && (
               <div className="flex items-center justify-between text-[9px] font-bold uppercase text-emerald-600">
                 <span>Da thanh toan</span>
@@ -1335,6 +1397,23 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                 className="w-full rounded-2xl border-none bg-gray-900 py-3.5 pl-10 pr-6 text-lg font-black text-white outline-none"
               />
             </div>
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-700">
+                  Xuat file PDF
+                </p>
+                <p className="mt-1 text-[10px] font-medium text-gray-400">
+                  Tu dong tai hoa don PDF ngay sau khi bill da thanh toan.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={shouldDownloadInvoicePdf}
+                onChange={(event) => setShouldDownloadInvoicePdf(event.target.checked)}
+                disabled={isPaying || isSettlingPayOs}
+                className="h-4 w-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500"
+              />
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={onClose}

@@ -33,9 +33,9 @@ const MenuItemCard = ({
     >
       {/* Khu vực Hình ảnh (Top half) */}
       <div className="h-44 bg-slate-50 relative overflow-hidden shrink-0">
-        {product.thumbnail ? (
+        {product.imageUrl || product.thumbnail ? (
           <img
-            src={product.thumbnail}
+            src={product.imageUrl || product.thumbnail}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />

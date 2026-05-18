@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Save, UtensilsCrossed,
   AlertTriangle, Flame, Plus,
   Trash2, ChevronDown, Loader2,
-  DollarSign
+  DollarSign, Image as ImageIcon, Upload
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+
+const revokeBlobUrl = (value) => {
+  if (typeof value === 'string' && value.startsWith('blob:')) {
+    URL.revokeObjectURL(value);
+  }
+};
 
 /**
  * RecipesEditor - Section for ingredient management
@@ -115,9 +121,12 @@ export function MenuFormModal({
     categoryId: '',
   });
   const [recipes, setRecipes] = useState([]);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     if (item) {
@@ -133,14 +142,21 @@ export function MenuFormModal({
         ingredientId: r.ingredientId,
         quantity: r.quantity
       })) || []);
+      setImageFile(null);
+      setImagePreviewUrl(item.imageUrl || '');
     } else {
       // Auto-select branch if possible
       setForm(prev => ({
         ...prev,
         branchId: user?.branchId || (branches[0]?.id || '')
       }));
+      setRecipes([]);
+      setImageFile(null);
+      setImagePreviewUrl('');
     }
   }, [item, user, branches]);
+
+  useEffect(() => () => revokeBlobUrl(imagePreviewUrl), [imagePreviewUrl]);
 
   const validate = () => {
     const e = {};
@@ -179,7 +195,8 @@ export function MenuFormModal({
         price: Number(form.price),
         branchId: Number(form.branchId),
         categoryId: Number(form.categoryId),
-        recipes: cleanRecipes
+        recipes: cleanRecipes,
+        imageFile
       });
     } catch (err) {
       const data = err.response?.data;
@@ -191,6 +208,31 @@ export function MenuFormModal({
         setFormError('Đã xảy ra lỗi hệ thống, vui lòng thử lại sau.');
       }
     }
+  };
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setImageFile(file);
+    setFieldErrors((prev) => ({ ...prev, imageFile: undefined }));
+
+    setImagePreviewUrl((previousUrl) => {
+      revokeBlobUrl(previousUrl);
+      if (file) {
+        return URL.createObjectURL(file);
+      }
+      return item?.imageUrl || '';
+    });
+  };
+
+  const handleResetSelectedImage = () => {
+    setImageFile(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+    setImagePreviewUrl((previousUrl) => {
+      revokeBlobUrl(previousUrl);
+      return item?.imageUrl || '';
+    });
   };
 
   const inputCls = (field) => `
@@ -271,6 +313,52 @@ export function MenuFormModal({
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Mô tả ngắn về hương vị món ăn..."
                 />
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Ảnh món ăn</label>
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                    <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                      {imagePreviewUrl ? (
+                        <img src={imagePreviewUrl} alt={form.name || 'Menu preview'} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-gray-300">
+                          <ImageIcon className="h-7 w-7" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Chưa có ảnh</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-3">
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-gray-700 transition-all hover:border-amber-400 hover:text-amber-600">
+                        <Upload className="h-4 w-4" />
+                        <span>{imageFile ? 'Đổi ảnh đã chọn' : 'Tải ảnh lên'}</span>
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {(imageFile || imagePreviewUrl) ? (
+                        <button
+                          type="button"
+                          onClick={handleResetSelectedImage}
+                          className="text-[11px] font-bold uppercase tracking-widest text-gray-400 transition-colors hover:text-red-500"
+                        >
+                          {imageFile ? 'Hủy ảnh mới' : 'Giữ nguyên ảnh hiện tại'}
+                        </button>
+                      ) : null}
+
+                      <p className="text-[11px] text-gray-400">
+                        Tải ảnh món ăn ngay trong form. Hình sẽ được đưa lên Cloudinary qua backend.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Price & Status */}

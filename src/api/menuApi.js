@@ -15,6 +15,28 @@
  */
 import apiClient from './apiClient';
 
+const multipartConfig = {
+  headers: {
+    'Content-Type': undefined,
+  },
+};
+
+const buildMenuItemFormData = (payload = {}) => {
+  const formData = new FormData();
+  const { imageFile, ...menuPayload } = payload;
+
+  formData.append(
+    'payload',
+    new Blob([JSON.stringify(menuPayload)], { type: 'application/json' })
+  );
+
+  if (imageFile instanceof File) {
+    formData.append('imageFile', imageFile);
+  }
+
+  return formData;
+};
+
 export const menuApi = {
   /**
    * Lấy danh sách menu items (phân trang).
@@ -54,7 +76,7 @@ export const menuApi = {
    *
    * Yêu cầu Role: ADMIN
    */
-  createMenuItem: (payload) => apiClient.post('/menu-items', payload),
+  createMenuItem: (payload) => apiClient.post('/menu-items', buildMenuItemFormData(payload), multipartConfig),
 
   /**
    * Cập nhật menu item.
@@ -65,7 +87,7 @@ export const menuApi = {
    *
    * Yêu cầu Role: ADMIN
    */
-  updateMenuItem: (menuItemId, payload) => apiClient.put(`/menu-items/${menuItemId}`, payload),
+  updateMenuItem: (menuItemId, payload) => apiClient.put(`/menu-items/${menuItemId}`, buildMenuItemFormData(payload), multipartConfig),
 
   /**
    * Xóa menu item.

@@ -81,9 +81,9 @@ const ProductCard = ({ product }) => {
     >
       {/* Image Area / Placeholder */}
       <div className="aspect-square w-full bg-[#f8f9fa] relative shrink-0 flex items-center justify-center overflow-hidden p-2">
-        {product.thumbnail ? (
+        {product.imageUrl || product.thumbnail ? (
           <img
-            src={product.thumbnail}
+            src={product.imageUrl || product.thumbnail}
             alt={product.name}
             className="w-full h-full object-cover rounded-xl transition-transform duration-700 group-hover:scale-105"
             loading="lazy"

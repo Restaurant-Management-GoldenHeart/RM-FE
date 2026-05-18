@@ -102,8 +102,16 @@ export function MenuTable({
               <tr key={item.id} className="group transition-colors hover:bg-amber-50/30">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-100 bg-gray-50 transition-colors group-hover:bg-amber-100">
-                      <UtensilsCrossed className="h-5 w-5 text-gray-300 group-hover:text-amber-600" />
+                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition-colors group-hover:bg-amber-100">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <UtensilsCrossed className="h-5 w-5 text-gray-300 group-hover:text-amber-600" />
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-bold tracking-tight text-gray-900">{item.name}</p>
