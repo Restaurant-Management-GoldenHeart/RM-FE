@@ -44,14 +44,14 @@ const sortTables = tables =>
 
 const isMergedMemberTable = table => table?.status === 'MERGED' || table?.isMergedMember;
 
-const isStandaloneOccupiedTable = (table, lazyOpenedTableIds = []) =>
+const getOperationalRootId = table => Number(table?.mergeRootTableId ?? table?.id ?? 0);
+
+const isMergeGroupCandidate = (table, lazyOpenedTableIds = []) =>
   Boolean(table) &&
   table.status === 'OCCUPIED' &&
+  !table.isVirtual &&
   !lazyOpenedTableIds.includes(table.id) &&
-  !table.mergeRoot &&
-  !isMergedMemberTable(table) &&
-  !table.merged &&
-  !table.mergeRootTableId;
+  !isMergedMemberTable(table);
 
 const buildMergeLabel = (rootTable, memberTables) =>
   [getTableName(rootTable), ...memberTables.map(getTableName)]
@@ -82,6 +82,8 @@ const MergeSelectionCard = ({
     selectedTone === 'emerald'
       ? 'border-emerald-200 bg-emerald-50/80 shadow-emerald-100/80'
       : 'border-amber-200 bg-amber-50/80 shadow-amber-100/80';
+  const mergedTableCount = Array.isArray(table?.mergedTableNames) ? table.mergedTableNames.length : 0;
+  const groupLabel = mergedTableCount > 1 ? `Nhóm ${mergedTableCount} bàn` : 'Bàn độc lập';
 
   return (
     <button
@@ -102,6 +104,9 @@ const MergeSelectionCard = ({
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
             {table.capacity || 0} chỗ
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+            {groupLabel}
           </span>
           {description ? (
             <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-600">
@@ -152,47 +157,50 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
   const isMergeRoot = Boolean(table?.mergeRoot);
   const displayName = getTableName(table);
 
-  const standaloneOccupiedTables = useMemo(
-    () => sortTables((tables || []).filter(candidate => isStandaloneOccupiedTable(candidate, lazyOpenedTableIds))),
+  const mergeGroupCandidates = useMemo(
+    () => sortTables((tables || []).filter(candidate => isMergeGroupCandidate(candidate, lazyOpenedTableIds))),
     [tables, lazyOpenedTableIds]
   );
 
-  const currentTableIsStandaloneEligible = useMemo(
-    () => isStandaloneOccupiedTable(table, lazyOpenedTableIds),
-    [table, lazyOpenedTableIds]
+  const currentTableOperationalRootId = useMemo(
+    () => (table ? getOperationalRootId(table) : null),
+    [table]
+  );
+
+  const currentTableMergeGroup = useMemo(
+    () => mergeGroupCandidates.find(candidate => candidate.id === currentTableOperationalRootId) || null,
+    [currentTableOperationalRootId, mergeGroupCandidates]
   );
 
   const mergeRootOptions = useMemo(() => {
     if (!table) return [];
-    if (isMergeRoot) return [table];
-    return standaloneOccupiedTables;
-  }, [isMergeRoot, standaloneOccupiedTables, table]);
+    return mergeGroupCandidates;
+  }, [mergeGroupCandidates, table]);
 
   const mergeRootTable = useMemo(() => {
     if (!table) return null;
-    if (isMergeRoot) return table;
-    return mergeRootOptions.find(candidate => candidate.id === mergeRootId) || table;
-  }, [isMergeRoot, mergeRootId, mergeRootOptions, table]);
+    return mergeRootOptions.find(candidate => candidate.id === mergeRootId)
+      || currentTableMergeGroup
+      || table;
+  }, [currentTableMergeGroup, mergeRootId, mergeRootOptions, table]);
 
   const mergeMemberOptions = useMemo(() => {
     if (!mergeRootTable) return [];
-    return standaloneOccupiedTables.filter(candidate => candidate.id !== mergeRootTable.id);
-  }, [mergeRootTable, standaloneOccupiedTables]);
+    return mergeGroupCandidates.filter(candidate => candidate.id !== mergeRootTable.id);
+  }, [mergeGroupCandidates, mergeRootTable]);
 
   const forcedCurrentSource =
-    Boolean(table) &&
-    !isMergeRoot &&
-    currentTableIsStandaloneEligible &&
+    Boolean(currentTableMergeGroup) &&
     mergeRootTable?.id &&
-    mergeRootTable.id !== table.id;
+    mergeRootTable.id !== currentTableMergeGroup.id;
 
   const effectiveSelectedSourceIds = useMemo(() => {
     const validIds = new Set(
       selectedMergeTableIds.filter(id => mergeMemberOptions.some(candidate => candidate.id === id))
     );
 
-    if (forcedCurrentSource && table?.id) {
-      validIds.add(table.id);
+    if (forcedCurrentSource && currentTableMergeGroup?.id) {
+      validIds.add(currentTableMergeGroup.id);
     }
 
     if (mergeRootTable?.id) {
@@ -200,7 +208,7 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
     }
 
     return Array.from(validIds);
-  }, [forcedCurrentSource, mergeMemberOptions, mergeRootTable?.id, selectedMergeTableIds, table?.id]);
+  }, [currentTableMergeGroup?.id, forcedCurrentSource, mergeMemberOptions, mergeRootTable?.id, selectedMergeTableIds]);
 
   const selectedMergeTables = useMemo(
     () =>
@@ -217,14 +225,14 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
     [mergeRootTable, selectedMergeTables]
   );
 
-  const canMerge = table?.status === 'OCCUPIED' && !isLazyOpen && !isMergedMember;
+  const canMerge = table?.status === 'OCCUPIED' && !isLazyOpen && !isMergedMember && !table?.isVirtual;
   const canSplit = table?.status === 'OCCUPIED' && !isLazyOpen && !isMergedMember && !isMergeRoot;
   const canClose = table?.status === 'OCCUPIED' && isLazyOpen && !isMergedMember && !isMergeRoot;
 
   useEffect(() => {
     if (!table) return;
     setView('MAIN');
-    setMergeRootId(table.id);
+    setMergeRootId(getOperationalRootId(table));
     setSelectedMergeTableIds([]);
     setIsSplitOpen(false);
     setIsUnmergeOpen(false);
@@ -596,7 +604,7 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
                     />
                   </div>
 
-                  {!isMergeRoot ? (
+                  {mergeRootOptions.length > 0 ? (
                     <div className="premium-card rounded-[1.6rem] p-5 sm:p-6">
                       <SectionTitle
                         eyebrow="Bước 1"
@@ -660,7 +668,7 @@ const TableActionModal = ({ table, onClose, onSelect }) => {
                     ) : (
                       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {mergeMemberOptions.map(candidate => {
-                          const isLockedCurrent = forcedCurrentSource && candidate.id === table.id;
+                          const isLockedCurrent = forcedCurrentSource && candidate.id === currentTableMergeGroup?.id;
                           const isChecked = effectiveSelectedSourceIds.includes(candidate.id);
 
                           return (

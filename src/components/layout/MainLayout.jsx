@@ -78,12 +78,12 @@ export default function MainLayout() {
       {/* Main content wrapper */}
       <div
         className={`flex flex-col flex-1 h-full min-w-0 overflow-hidden transition-[margin] duration-300 ${
-          collapsed ? 'md:ml-16' : 'md:ml-64'
-        } ml-0`}
+          collapsed ? 'ml-16 max-md:ml-0' : 'ml-64 max-md:ml-0'
+        }`}
       >
         <Header />
         <main className="flex-1 w-full overflow-x-hidden overflow-y-auto relative" id="main-scroll-container">
-          <div className={`${isPos ? 'p-0 h-full' : 'px-4 pt-4 pb-24 md:p-6 md:pb-6'} w-full max-w-full`}>
+          <div className={`${isPos ? 'p-0 h-full' : 'p-6 pb-6 max-md:px-4 max-md:pt-4 max-md:pb-24'} w-full max-w-full`}>
             <Outlet />
           </div>
         </main>

@@ -333,7 +333,7 @@ export default function KitchenPage() {
                 pollingActive ? 'bg-emerald-500' : 'bg-gray-300'
               )} />
             </h1>
-            <p className="hidden md:block text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+            <p className="block max-md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
               Tự động cập nhật mỗi 3s
             </p>
           </div>
@@ -346,7 +346,7 @@ export default function KitchenPage() {
             className="relative flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 transition-all font-bold text-xs md:text-sm shadow-sm active:scale-95"
           >
             <History size={15} />
-            <span className="hidden sm:inline">Lịch sử</span>
+            <span className="inline max-sm:hidden">Lịch sử</span>
             {historyItems.length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center tabular-nums">
                 {historyItems.length}
@@ -361,7 +361,7 @@ export default function KitchenPage() {
             className="flex items-center gap-1.5 px-3 py-2 md:px-5 md:py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 hover:bg-gray-50 transition-all font-bold text-xs md:text-sm shadow-sm active:scale-95 disabled:opacity-50"
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Làm mới</span>
+            <span className="inline max-sm:hidden">Làm mới</span>
           </button>
         </div>
       </header>
@@ -451,7 +451,7 @@ export default function KitchenPage() {
       </div>
 
       {/* ── DESKTOP LAYOUT (4 cột Kanban) ────────────────────────── */}
-      <main className="hidden md:flex flex-1 gap-4 p-4 overflow-x-auto no-scrollbar bg-[#eef0f4]">
+      <main className="flex max-md:hidden flex-1 gap-4 p-4 overflow-x-auto no-scrollbar bg-[#eef0f4]">
         <KitchenColumn
           title="Chờ chế biến" count={columns.pending.length}
           color="bg-gray-400" emptyIcon={<Flame size={48} />}

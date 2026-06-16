@@ -176,15 +176,15 @@ const Header = () => {
   }, [logout, navigate]);
 
   return (
-    <header className="sticky top-0 z-[50] bg-white/95 backdrop-blur-md border-b border-gray-100 h-14 md:h-20 flex items-center gap-3 px-3 md:px-8 shrink-0 shadow-sm">
+    <header className="sticky top-0 z-[50] bg-white/95 backdrop-blur-md border-b border-gray-100 h-20 max-md:h-14 flex items-center gap-3 px-8 max-md:px-3 shrink-0 shadow-sm">
 
       {/* ── Logo ── */}
-      <div className="flex items-center gap-2 md:gap-6 shrink-0">
-        <div className="w-9 h-9 md:w-12 md:h-12 bg-gray-900 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-gray-900/10 shrink-0">
-          <span className="text-white font-black text-base md:text-xl tracking-tighter">GH</span>
+      <div className="flex items-center gap-6 max-md:gap-2 shrink-0">
+        <div className="w-12 h-12 max-md:w-9 max-md:h-9 bg-gray-900 rounded-2xl max-md:rounded-xl flex items-center justify-center shadow-lg shadow-gray-900/10 shrink-0">
+          <span className="text-white font-black text-xl max-md:text-base tracking-tighter">GH</span>
         </div>
         {/* App name — desktop only */}
-        <div className="hidden md:block">
+        <div className="block max-md:hidden">
           <h1 className="text-xl font-black tracking-tighter text-gray-900 uppercase leading-none">
             GoldenHeart POS
           </h1>
@@ -198,11 +198,11 @@ const Header = () => {
       <MobileBranchPill role={role} />
 
       {/* ── Right Controls ── */}
-      <div className="flex items-center gap-2 md:gap-4 shrink-0 ml-auto">
+      <div className="flex items-center gap-4 max-md:gap-2 shrink-0 ml-auto">
 
         {/* Desktop: Branch Selector */}
         {role === 'ADMIN' && (
-          <div className="hidden md:block w-64 shrink-0">
+          <div className="block max-md:hidden w-64 shrink-0">
             <BranchSelector />
           </div>
         )}
@@ -211,8 +211,8 @@ const Header = () => {
         {/* <NotificationBell /> */}
 
         {/* Desktop separator + user info + logout */}
-        <div className="hidden md:block h-10 w-px bg-gray-100" />
-        <div className="hidden md:flex items-center gap-4 shrink-0">
+        <div className="block max-md:hidden h-10 w-px bg-gray-100" />
+        <div className="flex max-md:hidden items-center gap-4 shrink-0">
           <div className="text-right hidden lg:block">
             <p className="text-xs font-black text-gray-900 leading-none">
               {user?.fullName || user?.username || 'Người dùng'}

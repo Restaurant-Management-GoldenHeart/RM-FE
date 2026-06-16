@@ -104,7 +104,7 @@ export default function Sidebar({ collapsed, onToggle }) {
     <aside
       className={`
         h-screen flex flex-col fixed top-0 left-0 z-30
-        hidden md:flex
+        max-md:hidden
         transition-[width] duration-300 ease-in-out
         ${collapsed ? 'w-16' : 'w-64'}
         bg-white border-r border-gray-200 shadow-sm
