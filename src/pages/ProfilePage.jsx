@@ -8,7 +8,7 @@ import {
   User, Mail, Phone, MapPin, Calendar, Edit3,
   Loader2, ShieldCheck, Building2, BadgeCheck,
   Hash, Clock, Camera, Lock, AlertCircle, LogOut, Save, X,
-  AlertTriangle
+  AlertTriangle, ChevronDown, Eye, EyeOff, Check, KeyRound
 } from 'lucide-react';
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -71,9 +71,113 @@ function InfoChip({ icon: Icon, label, value, locked }) {
   );
 }
 
-// ─── PERSONAL TAB ────────────────────────────────────────────────────────────
+// ─── PASSWORD STRENGTH ───────────────────────────────────────────────────────
 
-function PersonalTab({ profile, onUpdate, onEditingChange }) {
+function PasswordStrengthBar({ password }) {
+  const checks = [
+    { label: 'Ít nhất 8 ký tự', test: (p) => p.length >= 8 },
+    { label: 'Có chữ thường (a-z)', test: (p) => /[a-z]/.test(p) },
+    { label: 'Có chữ hoa (A-Z)', test: (p) => /[A-Z]/.test(p) },
+    { label: 'Có số (0-9)', test: (p) => /\d/.test(p) },
+  ];
+
+  const passed = checks.filter(c => c.test(password)).length;
+  const percent = (passed / checks.length) * 100;
+
+  const strengthColor =
+    passed <= 1 ? 'bg-red-400' :
+    passed === 2 ? 'bg-orange-400' :
+    passed === 3 ? 'bg-amber-400' :
+    'bg-emerald-500';
+
+  const strengthLabel =
+    passed <= 1 ? 'Yếu' :
+    passed === 2 ? 'Trung bình' :
+    passed === 3 ? 'Khá' :
+    'Mạnh';
+
+  if (!password) return null;
+
+  return (
+    <div className="space-y-2.5 animate-in fade-in duration-300">
+      {/* Progress bar */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ease-out ${strengthColor}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className={`text-[9px] font-black uppercase tracking-widest ${
+          passed <= 1 ? 'text-red-500' :
+          passed === 2 ? 'text-orange-500' :
+          passed === 3 ? 'text-amber-600' :
+          'text-emerald-600'
+        }`}>
+          {strengthLabel}
+        </span>
+      </div>
+
+      {/* Checklist */}
+      <div className="grid grid-cols-2 gap-1">
+        {checks.map((c, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all duration-300 ${
+              c.test(password) ? 'bg-emerald-500 scale-100' : 'bg-gray-200 scale-90'
+            }`}>
+              {c.test(password) && <Check size={8} className="text-white" strokeWidth={3} />}
+            </div>
+            <span className={`text-[9px] font-bold transition-colors duration-300 ${
+              c.test(password) ? 'text-emerald-600' : 'text-gray-400'
+            }`}>
+              {c.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── PASSWORD INPUT ──────────────────────────────────────────────────────────
+
+function PasswordInput({ label, name, value, onChange, error, placeholder, maxLength = 100 }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[9px] font-black text-gray-400 uppercase ml-1 tracking-widest">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          name={name}
+          value={value}
+          onChange={onChange}
+          className={`
+            w-full px-4 py-3 pr-11 rounded-xl bg-gray-50 border text-sm font-bold outline-none transition-all
+            ${error ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500/20' : 'border-gray-100 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10'}
+          `}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          onClick={() => setShow(v => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+          tabIndex={-1}
+        >
+          {show ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+      </div>
+      {error && <p className="text-red-500 text-[9px] font-bold ml-1 uppercase">{error}</p>}
+    </div>
+  );
+}
+
+// ─── PERSONAL SECTION ────────────────────────────────────────────────────────
+
+function PersonalSection({ profile, onUpdate, onEditingChange }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     fullName: profile?.fullName || '',
@@ -239,31 +343,32 @@ function PersonalTab({ profile, onUpdate, onEditingChange }) {
   );
 }
 
-// ─── SECURITY TAB ─────────────────────────────────────────────────────────────
+// ─── CHANGE PASSWORD SECTION ──────────────────────────────────────────────────
 
-function SecurityTab({ onEditingChange }) {
+function ChangePasswordSection() {
   const { logout } = useAuthStore();
+  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
   const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    onEditingChange?.(true);
-    return () => onEditingChange?.(false);
-  }, [onEditingChange]);
-
-  const validateField = (name, value) => {
+  const validateField = (name, value, currentForm = form) => {
     let error = '';
     switch (name) {
-      case 'oldPassword':
-        if (!value) error = 'Bắt buộc';
+      case 'currentPassword':
+        if (!value) error = 'Vui lòng nhập mật khẩu hiện tại';
         break;
       case 'newPassword':
-        if (!value) error = 'Bắt buộc';
+        if (!value) error = 'Vui lòng nhập mật khẩu mới';
         else if (value.length < 8) error = 'Tối thiểu 8 ký tự';
+        else if (!/[a-z]/.test(value)) error = 'Cần có chữ thường';
+        else if (!/[A-Z]/.test(value)) error = 'Cần có chữ hoa';
+        else if (!/\d/.test(value)) error = 'Cần có số';
         break;
-      case 'confirmPassword':
-        if (value !== form.newPassword) error = 'Mật khẩu không khớp';
+      case 'confirmNewPassword':
+        if (!value) error = 'Vui lòng xác nhận mật khẩu';
+        else if (value !== (currentForm.newPassword ?? form.newPassword)) error = 'Mật khẩu không khớp';
         break;
       default:
         break;
@@ -275,12 +380,16 @@ function SecurityTab({ onEditingChange }) {
     const { name, value } = e.target;
     setForm(prev => {
       const next = { ...prev, [name]: value };
-      const err = validateField(name, value);
-      setErrors(prevErrs => ({ ...prevErrs, [name]: err }));
-      if (name === 'newPassword' && next.confirmPassword) {
-        const cErr = next.confirmPassword !== value ? 'Mật khẩu không khớp' : '';
-        setErrors(prevErrs => ({ ...prevErrs, confirmPassword: cErr }));
-      }
+      const err = validateField(name, value, next);
+      setErrors(prevErrs => {
+        const newErrs = { ...prevErrs, [name]: err };
+        // Re-validate confirm when newPassword changes
+        if (name === 'newPassword' && next.confirmNewPassword) {
+          const cErr = next.confirmNewPassword !== value ? 'Mật khẩu không khớp' : '';
+          newErrs.confirmNewPassword = cErr;
+        }
+        return newErrs;
+      });
       return next;
     });
   };
@@ -289,86 +398,157 @@ function SecurityTab({ onEditingChange }) {
     e.preventDefault();
     const newErrors = {};
     Object.keys(form).forEach(k => {
-      const err = validateField(k, form[k]);
+      const err = validateField(k, form[k], form);
       if (err) newErrors[k] = err;
     });
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error('Kiểm tra lại thông tin.');
+      toast.error('Vui lòng kiểm tra lại thông tin.');
       return;
     }
 
     setLoading(true);
     try {
-      await authApi.changePassword({ currentPassword: form.oldPassword, newPassword: form.newPassword });
-      toast.success('Đổi mật khẩu thành công!');
-      setTimeout(() => logout(), 1500);
+      await authApi.changePassword({
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+        confirmNewPassword: form.confirmNewPassword,
+      });
+      setSuccess(true);
+      toast.success('Đổi mật khẩu thành công! Đang đăng xuất...');
+      setTimeout(() => logout(), 2000);
     } catch (err) {
       const fieldErrs = extractAllFieldErrors(err);
       if (Object.keys(fieldErrs).length > 0) {
         setErrors(prev => ({ ...prev, ...fieldErrs }));
         toast.error(Object.values(fieldErrs)[0]);
       } else {
-        toast.error(extractErrorMessage(err, 'Thất bại.'));
+        toast.error(extractErrorMessage(err, 'Đổi mật khẩu thất bại.'));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const inputCls = (field) => `
-    w-full px-4 py-3 rounded-xl bg-gray-50 border text-sm font-bold outline-none transition-all
-    ${errors[field] ? 'border-red-400 bg-red-50 focus:ring-red-500/20' : 'border-gray-100 focus:bg-white focus:border-amber-500'}
-  `;
+  if (success) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-4 animate-in fade-in duration-500">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+          <Check size={32} className="text-emerald-600" strokeWidth={2.5} />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-black text-gray-900">Đổi mật khẩu thành công!</p>
+          <p className="text-xs text-gray-400 mt-1">Đang đăng xuất để bảo mật...</p>
+        </div>
+        <Loader2 size={20} className="animate-spin text-amber-500" />
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex items-center gap-2">
-        <Lock size={14} className="text-amber-500" />
-        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Đổi mật khẩu</h3>
-      </div>
-
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Mật khẩu hiện tại</label>
-          <input type="password" name="oldPassword" value={form.oldPassword} onChange={handleChange} className={inputCls('oldPassword')} placeholder="••••••••" maxLength={50} />
-          {errors.oldPassword && <p className="text-red-500 text-[9px] font-bold ml-1 uppercase">{errors.oldPassword}</p>}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Mật khẩu mới (Tối thiểu 8)</label>
-            <input type="password" name="newPassword" value={form.newPassword} onChange={handleChange} className={inputCls('newPassword')} placeholder="8+ ký tự" maxLength={50} />
-            {errors.newPassword && <p className="text-red-500 text-[9px] font-bold ml-1 uppercase">{errors.newPassword}</p>}
+    <div className="animate-in fade-in duration-300">
+      {/* Collapsible Header */}
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all duration-300 group ${
+          expanded
+            ? 'bg-gradient-to-r from-gray-900 to-gray-800 text-white shadow-xl shadow-gray-900/10'
+            : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-100'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+            expanded ? 'bg-white/10' : 'bg-amber-50 group-hover:bg-amber-100'
+          }`}>
+            <KeyRound size={16} className={expanded ? 'text-amber-400' : 'text-amber-600'} />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Xác nhận</label>
-            <input type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} className={inputCls('confirmPassword')} placeholder="Nhập lại" maxLength={50} />
-            {errors.confirmPassword && <p className="text-red-500 text-[9px] font-bold ml-1 uppercase">{errors.confirmPassword}</p>}
+          <div className="text-left">
+            <p className={`text-xs font-black uppercase tracking-wide ${expanded ? 'text-white' : 'text-gray-800'}`}>
+              Đổi mật khẩu
+            </p>
+            <p className={`text-[9px] font-bold mt-0.5 ${expanded ? 'text-gray-400' : 'text-gray-400'}`}>
+              Cập nhật mật khẩu đăng nhập của bạn
+            </p>
           </div>
         </div>
-      </div>
-
-      <div className="p-3 bg-amber-50/50 rounded-xl flex gap-3 border border-amber-100 items-start">
-        <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-[9px] text-amber-800 font-bold uppercase leading-tight tracking-tight">Hệ thống sẽ đăng xuất để bảo mật sau khi đổi mật khẩu.</p>
-      </div>
-
-      <button type="submit" disabled={loading} className="w-full py-4 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all">
-        {loading ? <Loader2 size={16} className="animate-spin text-amber-500" /> : <ShieldCheck size={16} className="text-amber-500" />}
-        <span>Xác nhận đổi mật khẩu</span>
+        <ChevronDown
+          size={16}
+          className={`transition-transform duration-300 ${expanded ? 'rotate-180 text-gray-400' : 'text-gray-400'}`}
+        />
       </button>
-    </form>
+
+      {/* Expanded Form */}
+      {expanded && (
+        <form
+          onSubmit={handleSubmit}
+          className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300"
+        >
+          {/* Current Password */}
+          <PasswordInput
+            label="Mật khẩu hiện tại"
+            name="currentPassword"
+            value={form.currentPassword}
+            onChange={handleChange}
+            error={errors.currentPassword}
+            placeholder="Nhập mật khẩu hiện tại"
+          />
+
+          {/* New Password */}
+          <PasswordInput
+            label="Mật khẩu mới"
+            name="newPassword"
+            value={form.newPassword}
+            onChange={handleChange}
+            error={errors.newPassword}
+            placeholder="Tối thiểu 8 ký tự, chữ hoa, thường, số"
+          />
+
+          {/* Strength Bar */}
+          <PasswordStrengthBar password={form.newPassword} />
+
+          {/* Confirm */}
+          <PasswordInput
+            label="Xác nhận mật khẩu mới"
+            name="confirmNewPassword"
+            value={form.confirmNewPassword}
+            onChange={handleChange}
+            error={errors.confirmNewPassword}
+            placeholder="Nhập lại mật khẩu mới"
+          />
+
+          {/* Warning */}
+          <div className="p-3.5 bg-amber-50/60 rounded-xl flex gap-3 border border-amber-100/80 items-start">
+            <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[9px] text-amber-800 font-bold uppercase leading-tight tracking-tight">
+              Hệ thống sẽ tự động đăng xuất tất cả phiên sau khi đổi mật khẩu thành công.
+            </p>
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all"
+          >
+            {loading
+              ? <Loader2 size={16} className="animate-spin text-amber-500" />
+              : <ShieldCheck size={16} className="text-amber-500" />
+            }
+            <span>Xác nhận đổi mật khẩu</span>
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { logout } = useAuthStore();
+  const { logout, role } = useAuthStore();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('personal');
   const [isEditing, setIsEditing] = useState(false);
 
   const fetchProfile = useCallback(async () => {
@@ -390,15 +570,13 @@ export default function ProfilePage() {
   const gradient = ROLE_GRADIENT[profile?.roleName] || ROLE_GRADIENT.STAFF;
   const badgeCls = ROLE_BADGE[profile?.roleName] || ROLE_BADGE.STAFF;
 
-  const tabs = [
-    { id: 'personal', label: 'Hồ sơ', icon: User },
-    ...(profile?.roleName !== 'ADMIN' ? [{ id: 'security', label: 'Bảo mật', icon: Lock }] : []),
-  ];
+  // ADMIN không được đổi mật khẩu (giới hạn từ BE)
+  const canChangePassword = profile?.roleName !== 'ADMIN';
 
   return (
     <div className="max-w-xl mx-auto space-y-4 pb-24 px-3 sm:px-0 animate-in fade-in duration-500">
 
-      {/* ── Header Card (The "Green/Blue" part) ── */}
+      {/* ── Header Card ── */}
       {!isEditing && (
         <div className="relative rounded-[2rem] overflow-hidden bg-white shadow-xl shadow-gray-900/5 border border-gray-100">
           <div className={`h-16 sm:h-20 w-full bg-gradient-to-r ${gradient} opacity-90`} />
@@ -434,41 +612,21 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── Tab Switcher ── */}
-      {!isEditing && tabs.length > 1 && (
-        <div className="bg-gray-100/80 p-1.5 rounded-[1.2rem] flex gap-1.5 border border-gray-200/50">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                activeTab === tab.id 
-                  ? 'bg-white text-gray-900 shadow-md ring-1 ring-gray-200/20' 
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <tab.icon size={14} />
-              <span>{tab.label}</span>
-            </button>
-          ))}
+      {/* ── Personal Info Card ── */}
+      <div className={`bg-white rounded-[2rem] p-5 sm:p-7 border border-gray-100 shadow-xl shadow-gray-900/5 transition-all ${isEditing ? 'mt-2' : ''}`}>
+        <PersonalSection 
+          profile={profile} 
+          onUpdate={setProfile} 
+          onEditingChange={setIsEditing} 
+        />
+      </div>
+
+      {/* ── Change Password Section ── */}
+      {canChangePassword && (
+        <div className="bg-white rounded-[2rem] p-5 sm:p-7 border border-gray-100 shadow-xl shadow-gray-900/5">
+          <ChangePasswordSection />
         </div>
       )}
-
-      {/* ── Content Card ── */}
-      <div className={`bg-white rounded-[2rem] p-5 sm:p-7 border border-gray-100 shadow-xl shadow-gray-900/5 transition-all ${isEditing ? 'mt-2' : ''}`}>
-        {activeTab === 'personal' && (
-          <PersonalTab 
-            profile={profile} 
-            onUpdate={setProfile} 
-            onEditingChange={setIsEditing} 
-          />
-        )}
-        {activeTab === 'security' && (
-          <SecurityTab 
-            onEditingChange={setIsEditing} 
-          />
-        )}
-      </div>
     </div>
   );
 }

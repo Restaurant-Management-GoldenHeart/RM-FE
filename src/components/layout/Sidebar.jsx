@@ -11,7 +11,6 @@ import {
   UtensilsCrossed,
   ShoppingCart,
   LogOut,
-  ChefHat,
   Flame,
   Menu,
   X,
@@ -68,12 +67,6 @@ const NAV_ITEMS = [
     label: 'Bếp',
     icon: Flame,
     roles: ['KITCHEN', 'ADMIN', 'MANAGER'],
-  },
-  {
-    to: '/profile',
-    label: 'Hồ sơ cá nhân',
-    icon: ChefHat,
-    roles: ['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN'],
   },
 ];
 

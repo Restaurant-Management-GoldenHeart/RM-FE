@@ -91,6 +91,128 @@ const mapItemStatus = (beStatus) => {
   return statusMap[beStatus] || beStatus || 'SENT';
 };
 
+const toSafeNumber = (value) => {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const normalizeSummaryNote = (note) => String(note ?? '').trim();
+
+const buildSummaryStatus = ({ sentQuantity, preparingQuantity, readyQuantity, servedQuantity }) => {
+  if (readyQuantity > 0) return 'READY';
+  if (preparingQuantity > 0) return 'PREPARING';
+  if (sentQuantity > 0) return 'SENT';
+  if (servedQuantity > 0) return 'SERVED';
+  return 'SENT';
+};
+
+export const mapOrderSummaryItem = (item) => {
+  if (!item) return null;
+
+  const quantity = toSafeNumber(item.quantity);
+  const price = toSafeNumber(item.unitPrice ?? item.price);
+  const sentQuantity = toSafeNumber(item.sentQuantity ?? item.statusBreakdown?.SENT);
+  const preparingQuantity = toSafeNumber(item.preparingQuantity ?? item.statusBreakdown?.PREPARING);
+  const readyQuantity = toSafeNumber(item.readyQuantity ?? item.statusBreakdown?.READY);
+  const servedQuantity = toSafeNumber(item.servedQuantity ?? item.statusBreakdown?.SERVED);
+  const note = normalizeSummaryNote(item.note);
+
+  const summary = {
+    id: item.id ?? item.menuItemId,
+    menuItemId: item.menuItemId,
+    name: item.menuItemName || item.name || 'Mon khong xac dinh',
+    quantity,
+    price,
+    unitPrice: price,
+    note,
+    lineTotal: toSafeNumber(item.lineTotal ?? price * quantity),
+    sentQuantity,
+    preparingQuantity,
+    readyQuantity,
+    servedQuantity,
+    statusBreakdown: {
+      SENT: sentQuantity,
+      PREPARING: preparingQuantity,
+      READY: readyQuantity,
+      SERVED: servedQuantity,
+    },
+    orderItemIds: Array.isArray(item.orderItemIds) ? item.orderItemIds : [],
+    readyOrderItemIds: Array.isArray(item.readyOrderItemIds) ? item.readyOrderItemIds : [],
+    cancellableOrderItemIds: Array.isArray(item.cancellableOrderItemIds) ? item.cancellableOrderItemIds : [],
+  };
+
+  return {
+    ...summary,
+    status: buildSummaryStatus(summary),
+  };
+};
+
+const buildGroupKey = (item) => [
+  item.menuItemId ?? item.name,
+  toSafeNumber(item.price ?? item.unitPrice),
+  normalizeSummaryNote(item.note).toLowerCase(),
+].join('|');
+
+export const groupOrderItemsForSummary = (items = []) => {
+  const groups = new Map();
+
+  items
+    .filter((item) => item && item.status !== 'CANCELLED')
+    .forEach((item) => {
+      const key = buildGroupKey(item);
+      const quantity = toSafeNumber(item.quantity);
+      const price = toSafeNumber(item.price ?? item.unitPrice);
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: item.menuItemId ?? item.id,
+          menuItemId: item.menuItemId,
+          name: item.name || item.menuItemName || 'Mon khong xac dinh',
+          quantity: 0,
+          price,
+          unitPrice: price,
+          note: normalizeSummaryNote(item.note),
+          lineTotal: 0,
+          sentQuantity: 0,
+          preparingQuantity: 0,
+          readyQuantity: 0,
+          servedQuantity: 0,
+          statusBreakdown: { SENT: 0, PREPARING: 0, READY: 0, SERVED: 0 },
+          orderItemIds: [],
+          readyOrderItemIds: [],
+          cancellableOrderItemIds: [],
+        });
+      }
+
+      const group = groups.get(key);
+      group.quantity += quantity;
+      group.lineTotal += price * quantity;
+      group.orderItemIds.push(item.id);
+
+      if (item.status === 'READY') {
+        group.readyQuantity += quantity;
+        group.statusBreakdown.READY += quantity;
+        group.readyOrderItemIds.push(item.id);
+      } else if (item.status === 'PREPARING') {
+        group.preparingQuantity += quantity;
+        group.statusBreakdown.PREPARING += quantity;
+        group.cancellableOrderItemIds.push(item.id);
+      } else if (item.status === 'SERVED') {
+        group.servedQuantity += quantity;
+        group.statusBreakdown.SERVED += quantity;
+      } else {
+        group.sentQuantity += quantity;
+        group.statusBreakdown.SENT += quantity;
+        group.cancellableOrderItemIds.push(item.id);
+      }
+    });
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    status: buildSummaryStatus(group),
+  }));
+};
+
 /**
  * Map một Order từ BE sang format FE.
  *
@@ -99,6 +221,16 @@ const mapItemStatus = (beStatus) => {
  */
 export const mapOrder = (order) => {
   if (!order) return null;
+
+  const rawItems = order.orderItems || order.items;
+  if (!rawItems) {
+    console.warn("[MAPPER_WARNING] items missing in order data from BE", order);
+  }
+  const mappedItems = rawItems ? rawItems.map(mapOrderItem).filter(Boolean) : [];
+  const rawSummaryItems = order.summaryItems || order.groupedItems;
+  const summaryItems = Array.isArray(rawSummaryItems) && rawSummaryItems.length > 0
+    ? rawSummaryItems.map(mapOrderSummaryItem).filter(Boolean)
+    : groupOrderItemsForSummary(mappedItems);
 
   return {
     id: order.orderId || order.id,
@@ -116,14 +248,8 @@ export const mapOrder = (order) => {
 
     // Danh sách món — map từng item
     // Lọc bỏ các item null/undefined để tránh lỗi render
-    items: (() => {
-      const rawItems = order.orderItems || order.items;
-      if (!rawItems) {
-        console.warn("[MAPPER_WARNING] items missing in order data from BE", order);
-        return [];
-      }
-      return rawItems.map(mapOrderItem).filter(Boolean);
-    })(),
+    items: mappedItems,
+    summaryItems,
 
     // ID khách hàng (nếu có)
     customerId: order.customerId ?? null,

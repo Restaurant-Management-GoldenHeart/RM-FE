@@ -17,6 +17,7 @@ import {
 import { clsx } from 'clsx';
 import { reportApi } from '../../api/reportApi';
 import { orderApi } from '../../api/posApi';
+import { groupOrderItemsForSummary, mapOrderItem, mapOrderSummaryItem } from '../../services/mapper/orderMapper';
 import { downloadBlobAsFile } from '../../utils/fileDownload';
 
 const wait = (milliseconds) =>
@@ -149,7 +150,11 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
   if (!isOpen) return null;
 
   const displayTime = order?.closedAt || bill?.lastPaidAt;
-  const itemsList = (order?.orderItems || order?.items || []).map(normalizeOrderItem);
+  const rawSummaryItems = order?.summaryItems || order?.groupedItems;
+  const itemsList = (Array.isArray(rawSummaryItems) && rawSummaryItems.length > 0
+    ? rawSummaryItems.map(mapOrderSummaryItem).filter(Boolean)
+    : groupOrderItemsForSummary((order?.orderItems || order?.items || []).map(mapOrderItem).filter(Boolean))
+  ).map(normalizeOrderItem);
   const taxRateLabel = `VAT (${formatPercent(deriveTaxRateFromBill(bill))})`;
   const memberRateLabel = `Member (${formatPercent(bill?.appliedTierDiscountRate)})`;
   const manualDiscountValue = toSafeNumber(bill?.manualDiscount);
@@ -286,7 +291,7 @@ export default function BillDetailModal({ isOpen, onClose, billId }) {
                               <tr key={item.id || idx} className="group transition-all hover:bg-white">
                                 <td className="px-6 py-4">
                                   <p className="text-sm font-bold text-gray-900">
-                                    {item.menuItemName || item.itemName}
+                                    {item.menuItemName || item.itemName || item.name}
                                   </p>
                                   {item.note ? (
                                     <p className="mt-0.5 text-[10px] font-medium italic text-amber-600">

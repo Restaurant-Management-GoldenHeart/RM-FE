@@ -39,6 +39,7 @@ import tableApi from '../../services/api/tableApi';
 import { reportApi } from '../../api/reportApi';
 import { customerTierApi } from '../../api/customerTierApi';
 import { customerApi } from '../../api/customerApi';
+import { groupOrderItemsForSummary } from '../../services/mapper/orderMapper';
 import { cn } from '../../utils/cn';
 import { downloadBlobAsFile } from '../../utils/fileDownload';
 
@@ -543,13 +544,16 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     };
   }, [customerProfile, hasCustomer, previewData, tiers]);
 
+  const paymentItems = useMemo(() => {
+    if (!order) return [];
+    return order.summaryItems?.length ? order.summaryItems : groupOrderItemsForSummary(order.items || []);
+  }, [order]);
+
   const subTotal = useMemo(() => {
     if (previewData) return previewData.subtotal;
     if (!order) return 0;
-    return order.items
-      .filter((item) => item.status !== 'CANCELLED')
-      .reduce((sum, item) => sum + item.price * item.quantity, 0);
-  }, [order, previewData]);
+    return paymentItems.reduce((sum, item) => sum + Number(item.lineTotal ?? item.price * item.quantity), 0);
+  }, [order, paymentItems, previewData]);
 
   const taxAmount = useMemo(() => {
     if (previewData) return previewData.tax;
@@ -563,7 +567,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
 
   const hasUnservedItems = useMemo(() => {
     if (!order) return false;
-    return order.items.some((item) => !['SERVED', 'CANCELLED'].includes(item.status));
+    return order.items.some((item) => !['SERVED', 'READY', 'CANCELLED'].includes(item.status));
   }, [order]);
 
   const payOsStatus = payOsTransaction?.status ?? null;
@@ -965,8 +969,8 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
           </div>
 
           <div className="no-scrollbar flex-1 space-y-2.5 overflow-y-auto pr-1">
-            {order.items.filter((item) => item.status !== 'CANCELLED').map((item) => (
-              <div key={item.id} className="flex items-start justify-between py-0.5">
+            {paymentItems.map((item) => (
+              <div key={`${item.menuItemId}-${item.price}-${item.note || ''}`} className="flex items-start justify-between py-0.5">
                 <div className="flex-1 pr-3">
                   <p className="truncate text-[10px] font-bold text-gray-800">{item.name}</p>
                   <p className="text-[8px] font-bold text-gray-400">
@@ -974,7 +978,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                   </p>
                 </div>
                 <p className="tabular-nums text-[10px] font-black text-gray-900">
-                  {formatVND(item.price * item.quantity)}
+                  {formatVND(item.lineTotal ?? item.price * item.quantity)}
                 </p>
               </div>
             ))}

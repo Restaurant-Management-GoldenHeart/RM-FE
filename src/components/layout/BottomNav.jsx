@@ -9,7 +9,6 @@ import {
   ShoppingCart, 
   Package, 
   Flame,
-  ChefHat
 } from 'lucide-react';
 
 const getMobileNav = (role) => {
@@ -21,21 +20,18 @@ const getMobileNav = (role) => {
     { to: '/pos', label: 'POS', icon: ShoppingCart },
     { to: '/inventory', label: 'Kho', icon: Package },
     { to: '/kitchen', label: 'Bếp', icon: Flame },
-    { to: '/profile', label: 'Hồ sơ', icon: ChefHat },
   ];
   
   const staff = [
     { to: '/pos', label: 'POS', icon: ShoppingCart },
     { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
     { to: '/inventory', label: 'Kho', icon: Package },
-    { to: '/profile', label: 'Hồ sơ', icon: ChefHat },
   ];
   
   const kitchen = [
     { to: '/kitchen', label: 'Bếp', icon: Flame },
     { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
     { to: '/inventory', label: 'Kho', icon: Package },
-    { to: '/profile', label: 'Hồ sơ', icon: ChefHat },
   ];
 
   if (role === 'ADMIN' || role === 'MANAGER') return adminManager;

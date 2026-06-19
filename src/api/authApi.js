@@ -67,7 +67,7 @@ export const authApi = {
 
   /**
    * Đổi mật khẩu.
-   * @param {{ oldPassword: string, newPassword: string }} data
+   * @param {{ currentPassword: string, newPassword: string, confirmNewPassword: string }} data
    */
   changePassword: (data) => apiClient.post('/auth/change-password', data),
 };

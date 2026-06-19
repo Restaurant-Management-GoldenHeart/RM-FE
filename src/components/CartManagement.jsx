@@ -14,18 +14,16 @@
  */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTableStore } from '../store/useTableStore';
-import { useOrderStore, selectOrderById } from '../store/useOrderStore';
-import { useCartStore, selectDraftByTable, selectDraftTotal, selectDraftCount, EMPTY_DRAFT } from '../store/useCartStore';
+import { useOrderStore } from '../store/useOrderStore';
+import { useCartStore, EMPTY_DRAFT } from '../store/useCartStore';
 import { cn } from '../utils/cn';
 import {
   Minus, Plus, Trash2, ShoppingBag,
   Receipt, ChefHat, Check, Loader2,
-  AlertCircle, MessageSquare, Clock, X,
+  MessageSquare,
   AlertTriangle, PackageX
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import PaymentModal from './pos/PaymentModal';
-import CancelReasonModal from './pos/CancelReasonModal';
 import CustomerSelector from './pos/CustomerSelector';
 
 const formatVND = (amount) =>
@@ -131,89 +129,77 @@ const DraftItemRow = ({ tableId, item }) => {
 
 // ─── Sent Item Row (Món đã gửi bếp) ───
 const SentItemRow = ({ item, orderId }) => {
-  const cancelItem = useOrderStore(s => s.cancelItem);
-  const serveItem = useOrderStore(s => s.serveItem);
-  const [cancelModal, setCancelModal] = useState({ isOpen: false, isForce: false });
+  const serveItems = useOrderStore(s => s.serveItems);
+  const [isServing, setIsServing] = useState(false);
 
-  // Map trạng thái món sang nhãn và màu sắc hiển thị
   const statusConfig = {
-    SENT: { label: 'Đã gửi', color: 'text-gray-500', bg: 'bg-gray-50', dot: 'bg-gray-400' },
-    PREPARING: { label: 'Đang làm', color: 'text-amber-600', bg: 'bg-amber-50', dot: 'bg-amber-500' },
-    READY: { label: 'Chờ cung ứng', color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500' },
-    SERVED: { label: 'Đã phục vụ', color: 'text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500' },
-    CANCELLED: { label: 'Đã huỷ', color: 'text-red-500', bg: 'bg-red-50', dot: 'bg-red-500' },
+    SENT: { label: 'Đã gửi', dot: 'bg-gray-400', chip: 'border-gray-100 bg-gray-50 text-gray-500' },
+    PREPARING: { label: 'Đang làm', dot: 'bg-amber-500', chip: 'border-amber-100 bg-amber-50 text-amber-600' },
+    READY: { label: 'Chờ phục vụ', dot: 'bg-emerald-500', chip: 'border-emerald-100 bg-emerald-50 text-emerald-600' },
+    SERVED: { label: 'Đã phục vụ', dot: 'bg-blue-500', chip: 'border-blue-100 bg-blue-50 text-blue-600' },
   };
 
-  const config = statusConfig[item.status] || statusConfig.SENT;
+  const primaryStatus = item.status || 'SENT';
+  const config = statusConfig[primaryStatus] || statusConfig.SENT;
+  const readyOrderItemIds = Array.isArray(item.readyOrderItemIds) ? item.readyOrderItemIds : [];
+  const statusBadges = [
+    ['SENT', item.sentQuantity],
+    ['PREPARING', item.preparingQuantity],
+    ['READY', item.readyQuantity],
+    ['SERVED', item.servedQuantity],
+  ].filter(([, quantity]) => Number(quantity) > 0);
+
+  const handleServeReadyItems = async () => {
+    if (!readyOrderItemIds.length || isServing) return;
+
+    setIsServing(true);
+    try {
+      await serveItems(orderId, readyOrderItemIds);
+    } finally {
+      setIsServing(false);
+    }
+  };
 
   return (
-    <div className={cn(
-      "flex flex-col gap-1 md:gap-2 p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all",
-      item.status === 'CANCELLED' ? "bg-red-50/30 border-red-50" : "bg-white border-gray-100"
-    )}>
-      <div className="flex items-center gap-3 md:gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn("w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0", config.dot)} />
-            <h5 className={cn(
-              "font-bold text-scale-xs md:text-scale-sm truncate uppercase tracking-tight",
-              item.status === 'CANCELLED' ? "text-gray-400 line-through" : "text-gray-700"
-            )}>
-              {item.name}
-            </h5>
-          </div>
-          <div className="flex items-center gap-2 md:gap-3 mt-0.5 md:mt-1 pl-3 md:pl-4">
+    <div className="flex flex-col gap-2.5 md:gap-3 p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all bg-white border-gray-100">
+      <div className="flex items-start gap-2.5 md:gap-3">
+        <span className={cn("mt-1.5 w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0", config.dot)} />
+
+        <div className="min-w-0 flex-1">
+          <h5 className="font-bold text-scale-xs md:text-scale-sm uppercase tracking-tight text-gray-800 leading-snug break-words">
+            {item.name}
+          </h5>
+          <div className="mt-1 flex flex-wrap items-center gap-2 md:gap-3">
             <p className="text-[10px] md:text-xs font-bold text-gray-400">{formatVND(item.price)}</p>
             <span className="text-[9px] md:text-[10px] text-gray-300">×</span>
             <span className="text-[11px] md:text-xs font-black text-gray-900">{item.quantity}</span>
           </div>
+        </div>
+      </div>
 
-          {item.status === 'CANCELLED' && item.cancelReason && (
-            <div className="mt-1.5 ml-3 md:ml-4 flex items-start gap-1.5">
-              <AlertCircle size={10} className="text-red-400 shrink-0 mt-0.5" />
-              <p className="text-[9px] md:text-[10px] font-bold text-red-500 leading-snug italic">
-                {item.cancelReason.replace('[FORCE] ', '')}
-                {item.cancelReason.includes('[FORCE]') && (
-                  <span className="ml-1 not-italic font-black text-red-700 bg-red-100 px-1 py-0.5 rounded text-[8px]">
-                    FORCE
-                  </span>
-                )}
-              </p>
-            </div>
-          )}
+      <div className="pl-4 md:pl-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-1.5 md:gap-2">
+          {statusBadges.map(([status, quantity]) => (
+            <span
+              key={status}
+              className={cn(
+                "px-2.5 py-1 md:px-3 rounded-lg border text-[9px] md:text-[10px] font-black uppercase tracking-wider whitespace-nowrap leading-none",
+                statusConfig[status]?.chip || statusConfig.SENT.chip
+              )}
+            >
+              {statusConfig[status]?.label || statusConfig.SENT.label}{Number(quantity) > 1 ? ` ×${quantity}` : ''}
+            </span>
+          ))}
         </div>
 
-        <div className={cn(
-          "px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg border text-[8px] md:text-[9px] font-black uppercase tracking-wider shrink-0",
-          config.label === 'Đã huỷ' ? 'border-red-100 bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500 border-gray-100'
-        )}>
-          {config.label}
-        </div>
-
-        {item.status === 'SENT' && (
+        {readyOrderItemIds.length > 0 && (
           <button
-            onClick={() => setCancelModal({ isOpen: true, isForce: false })}
-            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            onClick={handleServeReadyItems}
+            disabled={isServing}
+            className="self-start sm:self-auto flex items-center justify-center gap-1.5 px-3 md:px-4 py-2 bg-emerald-600 text-white rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 disabled:opacity-60"
           >
-            <X size={14} className="md:w-4 md:h-4" />
-          </button>
-        )}
-
-        {item.status === 'PREPARING' && (
-          <button
-            onClick={() => setCancelModal({ isOpen: true, isForce: true })}
-            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-          >
-            <AlertCircle size={14} className="md:w-4 md:h-4" />
-          </button>
-        )}
-
-        {item.status === 'READY' && (
-          <button
-            onClick={() => serveItem(orderId, item.id)}
-            className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 bg-emerald-600 text-white rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20"
-          >
-            <Check size={12} className="md:w-[14px] md:h-[14px]" /> Trả món
+            {isServing ? <Loader2 size={12} className="md:w-[14px] md:h-[14px] animate-spin" /> : <Check size={12} className="md:w-[14px] md:h-[14px]" />}
+            {Number(item.readyQuantity) > 1 ? `Trả ${item.readyQuantity}` : 'Trả món'}
           </button>
         )}
       </div>
@@ -269,8 +255,16 @@ export const CartPanel = () => {
     return null;
   });
   const order = orderFromStore;
+  const summaryItems = useMemo(() => order?.summaryItems || [], [order]);
+  const sentItemQuantity = useMemo(
+    () => summaryItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    [summaryItems]
+  );
+  const draftItemQuantity = useMemo(
+    () => draftItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    [draftItems]
+  );
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isBypassModalOpen, setIsBypassModalOpen] = useState(false);
 
   // ─── Auto-refresh order mỗi 30s để cập nhật trạng thái từ bếp ───
   // Khi bếp mark items COMPLETED, POS cần biết để hiện nút "Trả món".
@@ -292,10 +286,8 @@ export const CartPanel = () => {
 
   const sentTotal = useMemo(() => {
     if (!order) return 0;
-    return order.items
-      .filter(i => i.status !== 'CANCELLED')
-      .reduce((sum, i) => sum + (i.price * i.quantity), 0);
-  }, [order]);
+    return summaryItems.reduce((sum, i) => sum + Number(i.lineTotal ?? i.price * i.quantity), 0);
+  }, [order, summaryItems]);
 
   const hasUnservedItems = useMemo(() => {
     if (!order) return false;
@@ -422,16 +414,22 @@ export const CartPanel = () => {
         )}
 
         {/* Section: Sent Items */}
-        {order && order.items.length > 0 && (
+        {order && summaryItems.length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Đã gửi bếp ({order.items.length})</h4>
+            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Đã gửi bếp ({sentItemQuantity})</h4>
             <div className="space-y-2">
-              {order.items.map(item => <SentItemRow key={item.id} item={item} orderId={order.id} />)}
+              {summaryItems.map((item) => (
+                <SentItemRow
+                  key={`${item.menuItemId}-${item.price}-${item.note || ''}`}
+                  item={item}
+                  orderId={order.id}
+                />
+              ))}
             </div>
           </div>
         )}
 
-        {draftItems.length === 0 && (!order || order.items.length === 0) && (
+        {draftItems.length === 0 && (!order || summaryItems.length === 0) && (
           <div className="flex flex-col items-center justify-center h-full py-12 opacity-40">
             <ShoppingBag size={48} className="text-gray-200 mb-4" />
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Giỏ hàng trống</p>
@@ -452,7 +450,7 @@ export const CartPanel = () => {
             <div className="space-y-1 min-w-0">
               <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] truncate">Tổng tạm tính</p>
               <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[8px] md:text-[10px] font-black rounded-lg uppercase whitespace-nowrap">
-                {draftItems.length + (order?.items.length || 0)} món
+                {draftItemQuantity + sentItemQuantity} món
               </span>
             </div>
             <div className="text-right min-w-0">
@@ -511,16 +509,16 @@ export const CartPanel = () => {
 
           <button
             onClick={handlePaymentClick}
-            disabled={(!order?.id && draftItems.length === 0) || isProcessing || hasUnservedItems || draftItems.length > 0}
+            disabled={(!order?.id && draftItems.length === 0) || summaryItems.length === 0 || isProcessing || hasUnservedItems || draftItems.length > 0}
             className={cn(
               "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all",
-              (order?.id && order?.items?.length > 0 && !hasUnservedItems && draftItems.length === 0)
+              (order?.id && summaryItems.length > 0 && !hasUnservedItems && draftItems.length === 0)
                 ? "bg-gold-600 text-white hover:bg-gold-700 shadow-lg shadow-gold-600/20"
                 : "bg-gray-50 text-gray-200 cursor-not-allowed"
             )}
             title={hasUnservedItems ? "Còn món chưa phục vụ" : draftItems.length > 0 ? "Còn món chưa gửi bếp" : "Thanh toán"}
           >
-            <Receipt size={18} className={(order?.id && !hasUnservedItems && draftItems.length === 0) ? "text-white" : "text-gray-200"} />
+            <Receipt size={18} className={(order?.id && summaryItems.length > 0 && !hasUnservedItems && draftItems.length === 0) ? "text-white" : "text-gray-200"} />
             Thanh toán
           </button>
         </div>

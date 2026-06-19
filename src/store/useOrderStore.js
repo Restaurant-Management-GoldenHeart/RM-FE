@@ -172,6 +172,53 @@ export const useOrderStore = create((set, get) => ({
     }
   },
 
+  serveItems: async (orderId, orderItemIds = []) => {
+    const targetIds = [...new Set(orderItemIds.filter(Boolean))];
+    if (!orderId || targetIds.length === 0) return;
+    if (targetIds.length === 1) {
+      await get().serveItem(orderId, targetIds[0]);
+      return;
+    }
+
+    set(state => {
+      const order = state.orders[orderId];
+      if (!order) return state;
+      const targetIdSet = new Set(targetIds);
+
+      return {
+        orders: {
+          ...state.orders,
+          [orderId]: {
+            ...order,
+            items: order.items.map(i =>
+              targetIdSet.has(i.id) ? { ...i, status: 'SERVED' } : i
+            ),
+          },
+        },
+      };
+    });
+
+    try {
+      for (const orderItemId of targetIds) {
+        await orderApi.serveOrderItem(orderItemId);
+      }
+
+      await get().refreshOrder(orderId);
+      toast.success(`Đã phục vụ ${targetIds.length} dòng món cho khách!`);
+    } catch (err) {
+      await get().refreshOrder(orderId);
+
+      log.error('Lỗi khi đánh dấu phục vụ nhiều món:', {
+        endpoint: '/orders/order-items/{itemId}/serve',
+        orderId,
+        orderItemIds: targetIds,
+        status: err?.status,
+        message: err?.message,
+      });
+      toast.error(err?.message || 'Không thể cập nhật trạng thái phục vụ.');
+    }
+  },
+
   /**
    * cancelItem — Hủy một món ăn trong đơn hàng.
    * Bắt buộc phải có lý do hủy (reason).
