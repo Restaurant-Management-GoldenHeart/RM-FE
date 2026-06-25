@@ -1,10 +1,9 @@
 /**
- * KitchenPage.jsx — KDS (Kitchen Display System)
+ * KitchenPage.jsx - KDS (Kitchen Display System)
  *
  * Mobile: Tab-based layout (1 tab = 1 trạng thái, cuộn dọc)
- * Desktop: 4-cột Kanban ngang như cũ
- *
- * Polling tự động mỗi 3 giây (start mount, stop unmount)
+ * Desktop: 4-cột Kanban ngang
+ * Station: Bếp / Pha chế / Phục vụ trực tiếp
  */
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { useKitchenStore } from '../store/useKitchenStore';
@@ -14,11 +13,27 @@ import toast from 'react-hot-toast';
 import KitchenItemCard from '../components/kitchen/KitchenItemCard';
 import {
   ChefHat, RefreshCw, Flame, History,
-  CheckCircle2, XCircle, Clock, X, UtensilsCrossed
+  CheckCircle2, XCircle, X, UtensilsCrossed
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import {
+  PRODUCTION_STATIONS,
+  getProductionStationCopy,
+  normalizeProductionStation,
+} from '../constants/productionStations';
 
-// ─── SKELETON ────────────────────────────────────────────────────────────────
+const STATION_ICONS = {
+  KITCHEN: ChefHat,
+  BAR: UtensilsCrossed,
+  SERVICE: CheckCircle2,
+};
+
+const buildTabs = (copy) => ([
+  { id: 'pending', label: copy.pendingLabel, shortLabel: copy.pendingShortLabel, color: 'bg-gray-500', textActive: 'text-gray-700', bgActive: 'bg-gray-100', dot: 'bg-gray-500' },
+  { id: 'processing', label: copy.processingLabel, shortLabel: copy.processingShortLabel, color: 'bg-amber-500', textActive: 'text-amber-700', bgActive: 'bg-amber-50', dot: 'bg-amber-500' },
+  { id: 'ready', label: copy.readyLabel, shortLabel: copy.readyShortLabel, color: 'bg-emerald-500', textActive: 'text-emerald-700', bgActive: 'bg-emerald-50', dot: 'bg-emerald-500' },
+  { id: 'cancelled', label: 'Đã hủy', shortLabel: 'Hủy', color: 'bg-red-400', textActive: 'text-red-700', bgActive: 'bg-red-50', dot: 'bg-red-400' },
+]);
 
 const SkeletonCard = () => (
   <div className="animate-pulse flex flex-col gap-3 p-4 rounded-2xl border border-gray-100 bg-white">
@@ -31,8 +46,6 @@ const SkeletonCard = () => (
   </div>
 );
 
-// ─── HISTORY MODAL ───────────────────────────────────────────────────────────
-
 function HistoryModal({ isOpen, onClose, historyItems }) {
   if (!isOpen) return null;
   return (
@@ -44,12 +57,10 @@ function HistoryModal({ isOpen, onClose, historyItems }) {
         className="relative w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] flex flex-col bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle bar (mobile) */}
         <div className="flex justify-center pt-3 pb-1 md:hidden">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
-        {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/80">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gray-900 rounded-xl">
@@ -57,7 +68,7 @@ function HistoryModal({ isOpen, onClose, historyItems }) {
             </div>
             <div>
               <h2 className="text-sm font-black text-gray-900 uppercase tracking-widest">Lịch sử xử lý</h2>
-              <p className="text-[10px] text-gray-400 font-bold mt-0.5">{historyItems.length} món gần nhất</p>
+              <p className="text-[10px] text-gray-400 font-bold mt-0.5">{historyItems.length} mục gần nhất</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500">
@@ -65,7 +76,6 @@ function HistoryModal({ isOpen, onClose, historyItems }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {historyItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 opacity-30">
@@ -90,9 +100,9 @@ function HistoryModal({ isOpen, onClose, historyItems }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black text-gray-900 truncate">{item.menuItemName}</p>
                   <p className="text-[10px] font-bold text-gray-400 mt-0.5">
-                    {item.tableName} • SL: {item.quantity}
+                    {item.tableName} - SL: {item.quantity}
                     {item.status === 'CANCELLED' && item.cancelReason && (
-                      <span className="text-red-500"> • {item.cancelReason}</span>
+                      <span className="text-red-500"> - {item.cancelReason}</span>
                     )}
                   </p>
                 </div>
@@ -122,9 +132,7 @@ function HistoryModal({ isOpen, onClose, historyItems }) {
   );
 }
 
-// ─── COLUMN (Desktop Kanban) ──────────────────────────────────────────────────
-
-function KitchenColumn({ title, count, color, items, onAction, isProcessing, isDone, isCancelled, isGrouped, emptyIcon }) {
+function KitchenColumn({ title, count, color, items, onAction, isDone, isCancelled, isGrouped, emptyIcon, stationCopy }) {
   const groupedItems = useMemo(() => {
     if (!isGrouped) return null;
     const map = new Map();
@@ -162,7 +170,7 @@ function KitchenColumn({ title, count, color, items, onAction, isProcessing, isD
               </h3>
               <div className="space-y-2.5">
                 {tableItems.map(item => (
-                  <KitchenItemCard key={item.id} item={item} onAction={onAction} />
+                  <KitchenItemCard key={item.id} item={item} onAction={onAction} stationCopy={stationCopy} />
                 ))}
               </div>
             </div>
@@ -170,8 +178,13 @@ function KitchenColumn({ title, count, color, items, onAction, isProcessing, isD
         ) : (
           items.map(item => (
             <KitchenItemCard
-              key={item.id} item={item} onAction={onAction}
-              isHistory={isCancelled || isDone} isDone={isDone} isCancelled={isCancelled}
+              key={item.id}
+              item={item}
+              onAction={onAction}
+              isHistory={isCancelled || isDone}
+              isDone={isDone}
+              isCancelled={isCancelled}
+              stationCopy={stationCopy}
             />
           ))
         )}
@@ -180,9 +193,7 @@ function KitchenColumn({ title, count, color, items, onAction, isProcessing, isD
   );
 }
 
-// ─── MOBILE TAB PANEL ────────────────────────────────────────────────────────
-
-function MobileTabPanel({ items, onAction, isProcessing, isDone, isCancelled, isGrouped, emptyIcon, isLoading }) {
+function MobileTabPanel({ items, onAction, isDone, isCancelled, isGrouped, emptyIcon, isLoading, stationCopy }) {
   const groupedItems = useMemo(() => {
     if (!isGrouped) return null;
     const map = new Map();
@@ -197,7 +208,7 @@ function MobileTabPanel({ items, onAction, isProcessing, isDone, isCancelled, is
   if (isLoading && items.length === 0) {
     return (
       <div className="space-y-3 p-4">
-        {[1,2,3].map(i => <SkeletonCard key={i} />)}
+        {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
       </div>
     );
   }
@@ -218,19 +229,24 @@ function MobileTabPanel({ items, onAction, isProcessing, isDone, isCancelled, is
             <div key={tableName} className="bg-gray-50 rounded-3xl p-3 border border-gray-100">
               <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2.5 px-1 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                {tableName} — {tableItems.length} món
+                {tableName} - {tableItems.length} mục
               </h3>
               <div className="space-y-2.5">
                 {tableItems.map(item => (
-                  <KitchenItemCard key={item.id} item={item} onAction={onAction} />
+                  <KitchenItemCard key={item.id} item={item} onAction={onAction} stationCopy={stationCopy} />
                 ))}
               </div>
             </div>
           ))
         : items.map(item => (
             <KitchenItemCard
-              key={item.id} item={item} onAction={onAction}
-              isHistory={isCancelled || isDone} isDone={isDone} isCancelled={isCancelled}
+              key={item.id}
+              item={item}
+              onAction={onAction}
+              isHistory={isCancelled || isDone}
+              isDone={isDone}
+              isCancelled={isCancelled}
+              stationCopy={stationCopy}
             />
           ))
       }
@@ -238,88 +254,98 @@ function MobileTabPanel({ items, onAction, isProcessing, isDone, isCancelled, is
   );
 }
 
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'pending',    label: 'Chờ nấu',  shortLabel: 'Chờ',    color: 'bg-gray-500',    textActive: 'text-gray-700',   bgActive: 'bg-gray-100',   dot: 'bg-gray-500'    },
-  { id: 'processing', label: 'Đang nấu', shortLabel: 'Nấu',    color: 'bg-amber-500',   textActive: 'text-amber-700',  bgActive: 'bg-amber-50',   dot: 'bg-amber-500'   },
-  { id: 'ready',      label: 'Sẵn sàng', shortLabel: 'Xong',   color: 'bg-emerald-500', textActive: 'text-emerald-700',bgActive: 'bg-emerald-50', dot: 'bg-emerald-500' },
-  { id: 'cancelled',  label: 'Đã hủy',   shortLabel: 'Hủy',    color: 'bg-red-400',     textActive: 'text-red-700',    bgActive: 'bg-red-50',     dot: 'bg-red-400'     },
-];
-
 export default function KitchenPage() {
   const { selectedBranchId } = useBranchContext();
   const { user } = useAuthStore();
 
-  // Resolve branchId: context branch (ADMIN selects) or user's own branch
   const branchId = (selectedBranchId && selectedBranchId !== BRANCH_ALL)
     ? selectedBranchId
     : (user?.branchId ?? 1);
 
-  const pendingItems        = useKitchenStore(s => s.pendingItems);
-  const historyItems        = useKitchenStore(s => s.historyItems);
-  const paidOrderIds        = useKitchenStore(s => s.paidOrderIds);
-  const isLoading           = useKitchenStore(s => s.isLoading);
-  const pollingActive       = useKitchenStore(s => s.pollingActive);
-  const startPolling        = useKitchenStore(s => s.startPolling);
-  const stopPolling         = useKitchenStore(s => s.stopPolling);
-  const fetchPendingOrders  = useKitchenStore(s => s.fetchPendingOrders);
-  const completeOrderItem   = useKitchenStore(s => s.completeOrderItem);
-  const startCookingItem    = useKitchenStore(s => s.startCookingItem);
-  const fetchMenuItems      = useKitchenStore(s => s.fetchMenuItems);
+  const pendingItems = useKitchenStore(s => s.pendingItems);
+  const historyItems = useKitchenStore(s => s.historyItems);
+  const paidOrderIds = useKitchenStore(s => s.paidOrderIds);
+  const isLoading = useKitchenStore(s => s.isLoading);
+  const pollingActive = useKitchenStore(s => s.pollingActive);
+  const startPolling = useKitchenStore(s => s.startPolling);
+  const stopPolling = useKitchenStore(s => s.stopPolling);
+  const fetchPendingOrders = useKitchenStore(s => s.fetchPendingOrders);
+  const completeOrderItem = useKitchenStore(s => s.completeOrderItem);
+  const startCookingItem = useKitchenStore(s => s.startCookingItem);
+  const fetchMenuItems = useKitchenStore(s => s.fetchMenuItems);
   const fetchInventoryItems = useKitchenStore(s => s.fetchInventoryItems);
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab]         = useState('pending');
+  const [activeTab, setActiveTab] = useState('pending');
+  const [activeStation, setActiveStation] = useState('KITCHEN');
 
-  // Start/stop polling on mount and restart when branch changes
+  const stationCopy = useMemo(() => getProductionStationCopy(activeStation), [activeStation]);
+  const tabs = useMemo(() => buildTabs(stationCopy), [stationCopy]);
+
   useEffect(() => {
     fetchMenuItems(branchId);
     fetchInventoryItems(branchId);
-    stopPolling();
-    startPolling(branchId);
-    return () => stopPolling();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId]);
 
+  useEffect(() => {
+    stopPolling();
+    startPolling(branchId, activeStation);
+    return () => stopPolling();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, activeStation]);
+
+  const stationPendingItems = useMemo(
+    () => pendingItems.filter(item => normalizeProductionStation(item.productionStation) === activeStation),
+    [pendingItems, activeStation]
+  );
+
+  const stationHistoryItems = useMemo(
+    () => historyItems.filter(item => normalizeProductionStation(item.productionStation) === activeStation),
+    [historyItems, activeStation]
+  );
+
   const columns = useMemo(() => {
-    const pending = pendingItems
-      .filter(i => i.status === 'PENDING')
+    const pending = stationPendingItems
+      .filter(i => i.status === 'PENDING' || i.status === 'WAITING_STOCK')
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const processing = pendingItems
+    const processing = stationPendingItems
       .filter(i => i.status === 'PROCESSING')
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const ready = historyItems
+    const ready = stationHistoryItems
       .filter(i => i.status === 'COMPLETED' && !paidOrderIds.has(i.orderId))
       .slice(0, 20);
 
-    const cancelled = historyItems
+    const cancelled = stationHistoryItems
       .filter(i => i.status === 'CANCELLED' && !paidOrderIds.has(i.orderId))
       .slice(0, 20);
 
     return { pending, processing, ready, cancelled };
-  }, [pendingItems, historyItems, paidOrderIds]);
+  }, [stationPendingItems, stationHistoryItems, paidOrderIds]);
 
   const counts = {
-    pending:    columns.pending.length,
+    pending: columns.pending.length,
     processing: columns.processing.length,
-    ready:      columns.ready.length,
-    cancelled:  columns.cancelled.length,
+    ready: columns.ready.length,
+    cancelled: columns.cancelled.length,
   };
 
   const handleRefresh = useCallback(() => {
-    fetchPendingOrders();
+    fetchPendingOrders(branchId, activeStation);
     toast.success('Đã cập nhật danh sách mới nhất');
-  }, [fetchPendingOrders]);
+  }, [fetchPendingOrders, branchId, activeStation]);
 
-  const activeTabCfg = TABS.find(t => t.id === activeTab);
+  const handleStationChange = useCallback((stationId) => {
+    setActiveStation(stationId);
+    setActiveTab('pending');
+  }, []);
+
+  const activeTabCfg = tabs.find(t => t.id === activeTab) || tabs[0];
 
   return (
     <div className="flex flex-col h-full bg-[#f4f4f7] overflow-hidden">
-
-      {/* ── Header ── */}
       <header className="shrink-0 px-4 md:px-8 py-3.5 md:py-5 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
         <div className="flex items-center gap-3 md:gap-4 min-w-0">
           <div className="p-2.5 md:p-3 bg-gray-900 rounded-xl md:rounded-2xl shadow-lg shrink-0">
@@ -327,34 +353,32 @@ export default function KitchenPage() {
           </div>
           <div className="min-w-0">
             <h1 className="text-base md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2 leading-none">
-              <span className="truncate">KDS — Điều phối bếp</span>
+              <span className="truncate">{stationCopy.headerTitle}</span>
               <span className={cn(
                 'w-2 h-2 rounded-full animate-pulse shrink-0',
                 pollingActive ? 'bg-emerald-500' : 'bg-gray-300'
               )} />
             </h1>
             <p className="block max-md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-              Tự động cập nhật mỗi 3s
+              {stationCopy.subtitle}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
-          {/* Lịch sử */}
           <button
             onClick={() => setIsHistoryOpen(true)}
             className="relative flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 transition-all font-bold text-xs md:text-sm shadow-sm active:scale-95"
           >
             <History size={15} />
             <span className="inline max-sm:hidden">Lịch sử</span>
-            {historyItems.length > 0 && (
+            {stationHistoryItems.length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center tabular-nums">
-                {historyItems.length}
+                {stationHistoryItems.length}
               </span>
             )}
           </button>
 
-          {/* Làm mới */}
           <button
             onClick={handleRefresh}
             disabled={isLoading}
@@ -366,12 +390,33 @@ export default function KitchenPage() {
         </div>
       </header>
 
-      {/* ── MOBILE LAYOUT ────────────────────────────────────────── */}
-      <div className="md:hidden flex flex-col flex-1 overflow-hidden">
+      <div className="shrink-0 px-3 md:px-8 py-3 bg-white border-b border-gray-100">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {PRODUCTION_STATIONS.map(station => {
+            const Icon = STATION_ICONS[station.id] || ChefHat;
+            const active = activeStation === station.id;
+            return (
+              <button
+                key={station.id}
+                onClick={() => handleStationChange(station.id)}
+                className={cn(
+                  'shrink-0 flex items-center gap-2 px-3.5 md:px-4 py-2.5 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all active:scale-95',
+                  active
+                    ? 'bg-gray-900 text-white border-gray-900 shadow-lg'
+                    : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-white hover:text-gray-900'
+                )}
+              >
+                <Icon size={15} />
+                {station.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-        {/* Status count bar */}
+      <div className="md:hidden flex flex-col flex-1 overflow-hidden">
         <div className="shrink-0 px-3 pt-3 pb-1 flex gap-2">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -401,84 +446,108 @@ export default function KitchenPage() {
           ))}
         </div>
 
-        {/* Active tab label */}
         <div className="shrink-0 px-4 py-2 flex items-center gap-2">
           <div className={cn('w-2 h-2 rounded-full', activeTabCfg.dot)} />
           <span className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">
             {activeTabCfg.label}
             {counts[activeTab] > 0 && (
-              <span className="ml-2 text-gray-400">— {counts[activeTab]} món</span>
+              <span className="ml-2 text-gray-400">- {counts[activeTab]} mục</span>
             )}
           </span>
           {activeTab === 'pending' && counts.pending > 0 && (
             <span className="ml-auto flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-              <Flame size={10} /> Ưu tiên xử lý
+              <Flame size={10} /> {stationCopy.priorityText}
             </span>
           )}
         </div>
 
-        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'pending' && (
             <MobileTabPanel
-              items={columns.pending} onAction={startCookingItem}
-              isGrouped isLoading={isLoading}
+              items={columns.pending}
+              onAction={startCookingItem}
+              isGrouped
+              isLoading={isLoading}
               emptyIcon={<Flame size={44} />}
+              stationCopy={stationCopy}
             />
           )}
           {activeTab === 'processing' && (
             <MobileTabPanel
-              items={columns.processing} onAction={completeOrderItem}
-              isProcessing isLoading={isLoading}
+              items={columns.processing}
+              onAction={completeOrderItem}
+              isLoading={isLoading}
               emptyIcon={<UtensilsCrossed size={44} />}
+              stationCopy={stationCopy}
             />
           )}
           {activeTab === 'ready' && (
             <MobileTabPanel
               items={columns.ready}
-              isDone isHistory isLoading={isLoading}
+              isDone
+              isHistory
+              isLoading={isLoading}
               emptyIcon={<CheckCircle2 size={44} />}
+              stationCopy={stationCopy}
             />
           )}
           {activeTab === 'cancelled' && (
             <MobileTabPanel
               items={columns.cancelled}
-              isCancelled isHistory isLoading={isLoading}
+              isCancelled
+              isHistory
+              isLoading={isLoading}
               emptyIcon={<XCircle size={44} />}
+              stationCopy={stationCopy}
             />
           )}
         </div>
       </div>
 
-      {/* ── DESKTOP LAYOUT (4 cột Kanban) ────────────────────────── */}
       <main className="flex max-md:hidden flex-1 gap-4 p-4 overflow-x-auto no-scrollbar bg-[#eef0f4]">
         <KitchenColumn
-          title="Chờ chế biến" count={columns.pending.length}
-          color="bg-gray-400" emptyIcon={<Flame size={48} />}
-          items={columns.pending} onAction={startCookingItem} isGrouped
+          title={stationCopy.desktopPendingTitle}
+          count={columns.pending.length}
+          color="bg-gray-400"
+          emptyIcon={<Flame size={48} />}
+          items={columns.pending}
+          onAction={startCookingItem}
+          isGrouped
+          stationCopy={stationCopy}
         />
         <KitchenColumn
-          title="Đang nấu" count={columns.processing.length}
-          color="bg-amber-500" emptyIcon={<Flame size={48} />}
-          items={columns.processing} onAction={completeOrderItem} isProcessing
+          title={stationCopy.desktopProcessingTitle}
+          count={columns.processing.length}
+          color="bg-amber-500"
+          emptyIcon={<Flame size={48} />}
+          items={columns.processing}
+          onAction={completeOrderItem}
+          stationCopy={stationCopy}
         />
         <KitchenColumn
-          title="Sẵn sàng phục vụ" count={columns.ready.length}
-          color="bg-emerald-500" emptyIcon={<CheckCircle2 size={48} />}
-          items={columns.ready} isDone
+          title={stationCopy.desktopReadyTitle}
+          count={columns.ready.length}
+          color="bg-emerald-500"
+          emptyIcon={<CheckCircle2 size={48} />}
+          items={columns.ready}
+          isDone
+          stationCopy={stationCopy}
         />
         <KitchenColumn
-          title="Món đã hủy" count={columns.cancelled.length}
-          color="bg-red-400" emptyIcon={<XCircle size={48} />}
-          items={columns.cancelled} isCancelled
+          title={stationCopy.desktopCancelledTitle}
+          count={columns.cancelled.length}
+          color="bg-red-400"
+          emptyIcon={<XCircle size={48} />}
+          items={columns.cancelled}
+          isCancelled
+          stationCopy={stationCopy}
         />
       </main>
 
-      {/* ── History Modal ── */}
       <HistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
-        historyItems={historyItems}
+        historyItems={stationHistoryItems}
       />
     </div>
   );

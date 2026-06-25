@@ -48,6 +48,10 @@ export const mapKitchenItem = (item) => {
     // Tên món ăn (BE dùng menuItemName)
     menuItemName: item.menuItemName || item.name || 'Món không xác định',
 
+    categoryId: item.categoryId ?? item.category?.id ?? null,
+    categoryName: item.categoryName || item.category?.name || '',
+    productionStation: item.productionStation || item.category?.productionStation || 'KITCHEN',
+
     // Số lượng
     quantity: item.quantity ?? 1,
 

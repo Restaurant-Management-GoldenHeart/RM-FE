@@ -37,7 +37,7 @@ function useWaitTime(createdAt) {
   return { minutes, isLate: minutes >= 15 };
 }
 
-const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => {
+const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled, stationCopy }) => {
   const { minutes } = useWaitTime(item.createdAt);
 
   // Highlight món quá 10 phút chờ
@@ -75,6 +75,10 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
   const matchedMenu = menuItems.find(m => m.name === item.menuItemName);
   const isExpanded = expandedIds.includes(item.id);
   const hasIngredients = matchedMenu?.recipes && matchedMenu.recipes.length > 0;
+
+  const startActionLabel = stationCopy?.startAction || 'Bắt đầu nấu';
+  const retryActionLabel = stationCopy?.retryAction || 'Nấu lại';
+  const completeActionLabel = stationCopy?.completeAction || 'Hoàn tất';
 
   // handleCancelClick — Mở modal nhập lý do hủy
   const handleCancelClick = (e) => {
@@ -317,7 +321,7 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
               ) : (
                 <>
                   <RefreshCw size={14} />
-                  Nấu lại
+                  {retryActionLabel}
                 </>
               )}
             </button>
@@ -337,7 +341,7 @@ const KitchenItemCard = ({ item, onAction, isDone, isHistory, isCancelled }) => 
               {isActionLoading ? (
                 <Loader2 size={16} className="animate-spin mx-auto" />
               ) : (
-                item.status === 'PENDING' ? 'Bắt đầu nấu' : 'Hoàn tất'
+                item.status === 'PENDING' ? startActionLabel : completeActionLabel
               )}
             </button>
           )}

@@ -19,6 +19,7 @@ import InventoryMobileList from '../components/inventory/InventoryMobileList';
 import InventoryFormModal from '../components/inventory/InventoryFormModal';
 import RestockModal from '../components/inventory/RestockModal';
 import InventoryHistoryModal from '../components/inventory/InventoryHistoryModal';
+import InventoryImportModal from '../components/inventory/InventoryImportModal';
 import LowStockAlert from '../components/inventory/LowStockAlert';
 import PremiumConfirmModal from '../components/PremiumConfirmModal';
 import PaginationBar from '../components/common/PaginationBar';
@@ -68,6 +69,7 @@ export default function InventoryPage() {
     isFetching,
     branchesLoading,
     isSaving,
+    isRestocking,
     isDeleting,
     error,
     pagination,
@@ -80,6 +82,7 @@ export default function InventoryPage() {
     handleBranchChange,
     handlePageChange,
     saveItem,
+    restockItem,
     deleteItem,
     refresh
   } = useInventory();
@@ -90,9 +93,13 @@ export default function InventoryPage() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [viewMode, setViewMode] = useState('table');
   const [showFilters, setShowFilters] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+
+  const importBranchId = filterBranchId ?? (user?.branchId ? Number(user.branchId) : null);
+  const importBranchName = branches.find((branch) => Number(branch.id) === Number(importBranchId))?.name || user?.branchName || '';
 
   const onEdit = async (item) => {
     if (item && !item.unitId && (item.inventoryId || item.id)) {
@@ -132,6 +139,11 @@ export default function InventoryPage() {
     setSelectedItem(null);
   };
 
+  const onRestockSubmit = async (data) => {
+    await restockItem(data, selectedItem?.inventoryId || selectedItem?.id);
+    setIsRestockOpen(false);
+    setSelectedItem(null);
+  };
   const onViewHistory = (item) => {
     setSelectedItem(item);
     setIsHistoryOpen(true);
@@ -172,7 +184,7 @@ export default function InventoryPage() {
                       <Plus size={13} /> Thêm NVL
                     </button>
                     <button
-                      onClick={() => setLowStockOnly(true)}
+                      onClick={() => setIsImportOpen(true)}
                       className="h-9 px-4 bg-orange-500 text-white rounded-xl text-[10px] font-black flex items-center gap-2 hover:bg-orange-600 transition-colors active:scale-95 uppercase tracking-widest"
                     >
                       <TrendingUp size={13} /> Nhập hàng
@@ -299,7 +311,7 @@ export default function InventoryPage() {
                 Thêm NVL mới <Package size={14} />
               </button>
               <button
-                onClick={() => { setLowStockOnly(true); setFabOpen(false); }}
+                onClick={() => { setIsImportOpen(true); setFabOpen(false); }}
                 className="flex items-center justify-between w-48 px-4 py-3 bg-amber-500 text-white rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest"
               >
                 Nhập hàng ngay <TrendingUp size={14} />
@@ -333,10 +345,20 @@ export default function InventoryPage() {
       <RestockModal 
         isOpen={isRestockOpen}
         onClose={() => { setIsRestockOpen(false); setSelectedItem(null); }}
-        onSubmit={onFormSubmit}
+        onSubmit={onRestockSubmit}
         item={selectedItem}
-        isLoading={isSaving}
+        units={units}
+        isLoading={isRestocking}
       />
+
+      <InventoryImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        branchId={importBranchId}
+        branchName={importBranchName}
+        onImported={refresh}
+      />
+
       
       <InventoryHistoryModal 
         isOpen={isHistoryOpen} 

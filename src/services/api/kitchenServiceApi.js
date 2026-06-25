@@ -29,8 +29,11 @@ export const kitchenServiceApi = {
    * @param {number} branchId - ID chi nhánh cần lấy danh sách món bếp
    * @returns {Promise<ApiResponse>}
    */
-  getPendingItems: (branchId) =>
-    apiClient.get('/kitchen/orders/pending', { params: { branchId } }),
+  getPendingItems: (branchId, station) => {
+    const params = { branchId };
+    if (station) params.station = station;
+    return apiClient.get('/kitchen/orders/pending', { params });
+  },
 
   /**
    * Cập nhật trạng thái xử lý của một món ăn ở bếp.

@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/useAuthStore';
+import HomePage from './pages/HomePage';
 
 /**
  * File này giữ vai trò khung xương của frontend:
@@ -171,15 +172,8 @@ function AppRoutes() {
         />
       </Route>
 
-      {/* Root redirect */}
-      <Route
-        path="/"
-        element={
-          isAuthenticated
-            ? <Navigate to={homeRedirect} replace />
-            : <Navigate to="/login" replace />
-        }
-      />
+      {/* Root — public homepage */}
+      <Route path="/" element={<HomePage />} />
 
       {/* 404 fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

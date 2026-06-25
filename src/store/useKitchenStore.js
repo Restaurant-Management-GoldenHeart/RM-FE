@@ -131,14 +131,15 @@ export const useKitchenStore = create((set, get) => ({
    * fetchPendingOrders — Tải danh sách món chờ từ Backend.
    * @param {number} [branchIdOverride] - Branch cụ thể (từ BranchContext), fallback về user.branchId
    */
-  fetchPendingOrders: async (branchIdOverride) => {
+  fetchPendingOrders: async (branchIdOverride, stationOverride) => {
     if (get().isLoading) return;
 
     const branchId = branchIdOverride ?? (useAuthStore.getState()?.user?.branchId ?? 1);
+    const station = stationOverride || null;
     set({ isLoading: true });
 
     try {
-      const response = await kitchenServiceApi.getPendingItems(branchId);
+      const response = await kitchenServiceApi.getPendingItems(branchId, station);
       const rawItems = response?.data ?? [];
       const items = mapKitchenItems(rawItems);
 
@@ -177,17 +178,17 @@ export const useKitchenStore = create((set, get) => ({
    * startPolling — Bắt đầu polling tự động để cập nhật realtime.
    * @param {number} [branchId] - Branch để poll (từ BranchContext)
    */
-  startPolling: (branchId) => {
+  startPolling: (branchId, station) => {
     if (pollingIntervalId) {
       clearInterval(pollingIntervalId);
       pollingIntervalId = null;
     }
 
-    get().fetchPendingOrders(branchId);
+    get().fetchPendingOrders(branchId, station);
 
     pollingIntervalId = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        get().fetchPendingOrders(branchId);
+        get().fetchPendingOrders(branchId, station);
       }
     }, POLLING_INTERVAL_MS);
 

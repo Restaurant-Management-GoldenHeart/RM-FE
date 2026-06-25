@@ -7,6 +7,7 @@ import {
   DollarSign, Image as ImageIcon, Upload
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getProductionStationLabel } from '../../constants/productionStations';
 
 const revokeBlobUrl = (value) => {
   if (typeof value === 'string' && value.startsWith('blob:')) {
@@ -406,7 +407,7 @@ export function MenuFormModal({
                 <label className="text-gray-800 text-[11px] font-black uppercase tracking-widest pl-1">Danh mục *</label>
                 <select className={inputCls('categoryId')} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
                   <option value="">-- Chọn danh mục --</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name} - {getProductionStationLabel(c.productionStation)}</option>)}
                 </select>
                 {(errors.categoryId || fieldErrors.categoryId) && (
                   <p className="text-red-500 text-[10px] font-bold flex items-center gap-1.5 pl-1">

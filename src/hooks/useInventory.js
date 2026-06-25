@@ -143,6 +143,19 @@ export const useInventory = () => {
     // onError intentionally omitted — toast is shown by InventoryFormModal's catch block
   });
 
+  const restockMutation = useMutation({
+    mutationFn: ({ id, data }) => inventoryApi.restockInventoryItem({ id, data }),
+    onSuccess: () => {
+      toast.success('Nhập hàng thành công');
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      queryClient.invalidateQueries({ queryKey: ['inventorySummary'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovementReport'] });
+    },
+    onError: (err) => {
+      toast.error(extractErrorMessage(err, 'Nhập hàng thất bại'));
+    }
+  });
   const deleteMutation = useMutation({
     mutationFn: (id) => inventoryApi.deleteInventoryItem(id),
     onSuccess: () => {
@@ -173,11 +186,23 @@ export const useInventory = () => {
     setPage(0);
   };
 
+  const refreshInventoryData = () => {
+    queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+    queryClient.invalidateQueries({ queryKey: ['inventorySummary'] });
+    queryClient.invalidateQueries({ queryKey: ['lowStockAlerts'] });
+    queryClient.invalidateQueries({ queryKey: ['inventoryMovementReport'] });
+    return refetch();
+  };
   const handlePageChange = (newPage) => setPage(newPage);
 
   const saveItem = async (data, id) => {
     // Let the error propagate so InventoryFormModal can handle field-level errors
     await saveMutation.mutateAsync({ id, data });
+    return true;
+  };
+
+  const restockItem = async (data, id) => {
+    await restockMutation.mutateAsync({ id, data });
     return true;
   };
 
@@ -200,6 +225,7 @@ export const useInventory = () => {
     isFetching,
     branchesLoading,
     isSaving: saveMutation.isPending,
+    isRestocking: restockMutation.isPending,
     isDeleting: deleteMutation.isPending,
     error: queryError?.message,
     pagination,
@@ -212,7 +238,8 @@ export const useInventory = () => {
     handleBranchChange,
     handlePageChange,
     saveItem,
+    restockItem,
     deleteItem,
-    refresh: refetch,
+    refresh: refreshInventoryData,
   };
 };
