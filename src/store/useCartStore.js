@@ -397,6 +397,63 @@ export const useCartStore = create((set, get) => ({
   },
 
   /**
+   * addComboItems — Thêm combo vào giỏ dưới dạng 1 entry duy nhất (type: 'COMBO').
+   * Khi gửi bếp, combo sẽ được expand thành từng món riêng.
+   * Nếu cùng combo đã có → tăng quantity.
+   *
+   * @param {number} tableId - ID bàn
+   * @param {object} combo   - { id, name, price, discountPct, items: [...] }
+   */
+  addComboItems: (tableId, combo) => {
+    if (!tableId || !combo?.items?.length) return;
+
+    set(state => {
+      const tableCart = [...(state.draftItems[tableId] ?? [])];
+      const existIdx = tableCart.findIndex(i => i.type === 'COMBO' && i.comboId === combo.id);
+
+      if (existIdx !== -1) {
+        tableCart[existIdx] = { ...tableCart[existIdx], quantity: tableCart[existIdx].quantity + 1 };
+      } else {
+        tableCart.push({
+          type: 'COMBO',
+          comboId: combo.id,
+          name: combo.name,
+          price: Number(combo.price),
+          discountPct: combo.discountPct || 10,
+          quantity: 1,
+          items: combo.items.map(i => ({
+            menuItemId: i.menuItemId,
+            name: i.menuItemName,
+            quantity: i.quantity,
+            unitPrice: Number(i.menuItemPrice),
+          })),
+        });
+      }
+
+      return { draftItems: { ...state.draftItems, [tableId]: tableCart } };
+    });
+
+    toast.success(`🛒 Đã thêm ${combo.name} (${combo.items.length} món · Giảm ${combo.discountPct}%)`, { duration: 1800 });
+  },
+
+  /**
+   * updateComboQuantity — Tăng/giảm số lượng combo trong giỏ.
+   * Nếu newQty <= 0 → xóa combo khỏi giỏ.
+   */
+  updateComboQuantity: (tableId, comboId, newQty) => {
+    set(state => ({
+      draftItems: {
+        ...state.draftItems,
+        [tableId]: newQty <= 0
+          ? (state.draftItems[tableId] ?? []).filter(i => !(i.type === 'COMBO' && i.comboId === comboId))
+          : (state.draftItems[tableId] ?? []).map(i =>
+              i.type === 'COMBO' && i.comboId === comboId ? { ...i, quantity: newQty } : i
+            ),
+      },
+    }));
+  },
+
+  /**
    * mergeDraftItems — Gộp giỏ hàng từ bàn nguồn sang bàn đích.
    * ❗ CASE: Khi gộp bàn ảo, món chưa gửi bếp cũng phải được gom về bàn chính.
    * Logic: Nếu trùng menuItemId và note -> cộng dồn số lượng.
@@ -413,21 +470,25 @@ export const useCartStore = create((set, get) => ({
       const targetItems = [...(state.draftItems[targetTableId] || [])];
 
       sourceItems.forEach(sItem => {
-        // Tìm món tương đương ở bàn đích (cùng ID món và cùng ghi chú)
-        const existIdx = targetItems.findIndex(tItem => 
-          tItem.menuItemId === sItem.menuItemId && 
-          (tItem.note || '').trim() === (sItem.note || '').trim()
-        );
-
-        if (existIdx !== -1) {
-          // Nếu trùng -> Cộng dồn số lượng
-          targetItems[existIdx] = {
-            ...targetItems[existIdx],
-            quantity: targetItems[existIdx].quantity + sItem.quantity
-          };
+        if (sItem.type === 'COMBO') {
+          const existIdx = targetItems.findIndex(tItem =>
+            tItem.type === 'COMBO' && tItem.comboId === sItem.comboId
+          );
+          if (existIdx !== -1) {
+            targetItems[existIdx] = { ...targetItems[existIdx], quantity: targetItems[existIdx].quantity + sItem.quantity };
+          } else {
+            targetItems.push({ ...sItem });
+          }
         } else {
-          // Nếu mới -> Thêm vào mảng
-          targetItems.push({ ...sItem });
+          const existIdx = targetItems.findIndex(tItem =>
+            tItem.menuItemId === sItem.menuItemId &&
+            (tItem.note || '').trim() === (sItem.note || '').trim()
+          );
+          if (existIdx !== -1) {
+            targetItems[existIdx] = { ...targetItems[existIdx], quantity: targetItems[existIdx].quantity + sItem.quantity };
+          } else {
+            targetItems.push({ ...sItem });
+          }
         }
       });
 
@@ -664,8 +725,15 @@ export const useCartStore = create((set, get) => ({
       const { usePosStore } = await import('./usePosStore');
       const menuItems = usePosStore.getState().menuItems;
 
+      // Expand combo items thành từng món để kiểm tra nguyên liệu
+      const flatItems = items.flatMap(item =>
+        item.type === 'COMBO'
+          ? item.items.map(ci => ({ menuItemId: ci.menuItemId, quantity: ci.quantity * item.quantity, name: ci.name }))
+          : [item]
+      );
+
       // Bước 5a: Tính toán nguyên liệu cần
-      const required = calculateRequiredIngredients(items, menuItems);
+      const required = calculateRequiredIngredients(flatItems, menuItems);
 
       // Bước 5b: So sánh với tồn kho
       const shortages = checkStockAvailability(required, inventoryData);
@@ -675,21 +743,31 @@ export const useCartStore = create((set, get) => ({
       if (shortages.length > 0) {
         // === CÓ THIẾU NGUYÊN LIỆU → BLOCK ===
 
-        // Tìm các món trong giỏ bị ảnh hưởng bởi shortage
-        // Mục đích: highlight màu đỏ đúng món, không highlight hết giỏ hàng
         const shortageIngredientIds = new Set(shortages.map(s => s.ingredientId));
         const insufficientMenuItemIds = {};
 
         for (const cartItem of items) {
-          const menuItem = menuItems.find(m => m.id === cartItem.menuItemId);
-          if (!menuItem?.recipes) continue;
-
-          const hasShortage = menuItem.recipes.some(r => shortageIngredientIds.has(r.ingredientId));
-          if (hasShortage) {
-            // Lưu danh sách shortage liên quan đến món này
-            insufficientMenuItemIds[cartItem.menuItemId] = shortages.filter(s =>
-              menuItem.recipes.some(r => r.ingredientId === s.ingredientId)
-            );
+          if (cartItem.type === 'COMBO') {
+            // Kiểm tra từng món con trong combo
+            for (const ci of cartItem.items) {
+              const menuItem = menuItems.find(m => m.id === ci.menuItemId);
+              if (!menuItem?.recipes) continue;
+              const hasShortage = menuItem.recipes.some(r => shortageIngredientIds.has(r.ingredientId));
+              if (hasShortage) {
+                insufficientMenuItemIds[ci.menuItemId] = shortages.filter(s =>
+                  menuItem.recipes.some(r => r.ingredientId === s.ingredientId)
+                );
+              }
+            }
+          } else {
+            const menuItem = menuItems.find(m => m.id === cartItem.menuItemId);
+            if (!menuItem?.recipes) continue;
+            const hasShortage = menuItem.recipes.some(r => shortageIngredientIds.has(r.ingredientId));
+            if (hasShortage) {
+              insufficientMenuItemIds[cartItem.menuItemId] = shortages.filter(s =>
+                menuItem.recipes.some(r => r.ingredientId === s.ingredientId)
+              );
+            }
           }
         }
 
@@ -737,12 +815,23 @@ export const useCartStore = create((set, get) => ({
       }
 
 
-      // Chuyển đổi CartItem sang format BE yêu cầu
-      const beItems = items.map(item => ({
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        note: item.note || null,
-      }));
+      // Expand combo → từng món riêng cho BE (bếp cần biết cụ thể từng món)
+      // overridePrice: giá đã chiết khấu — BE dùng giá này thay vì giá gốc trong DB
+      const multiplierByCombo = {};
+      items.filter(i => i.type === 'COMBO').forEach(i => {
+        multiplierByCombo[i.comboId] = 1 - (i.discountPct || 10) / 100;
+      });
+
+      const beItems = items.flatMap(item =>
+        item.type === 'COMBO'
+          ? item.items.map(ci => ({
+              menuItemId: ci.menuItemId,
+              quantity: ci.quantity * item.quantity,
+              note: `[Combo:${item.quantity}] ${item.name}`,
+              overridePrice: Math.round(ci.unitPrice * multiplierByCombo[item.comboId]),
+            }))
+          : [{ menuItemId: item.menuItemId, quantity: item.quantity, note: item.note || null }]
+      );
 
       // Gọi API: POST /api/v1/orders
       // Nếu tableId là chuỗi (MV1, MV2...) -> gửi null để BE hiểu là Mang về

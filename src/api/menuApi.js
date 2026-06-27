@@ -111,6 +111,15 @@ export const menuApi = {
    * @param {{ name: string, description?: string }} payload
    */
   createCategory: (payload) => apiClient.post('/categories', payload),
+
+  /**
+   * Danh sách món phổ biến cho homepage — public, không cần auth.
+   * Trả về mảng đã sort theo totalOrderCount DESC.
+   * Mỗi item có bestSeller: boolean (top 2 mỗi category).
+   *
+   * @returns {Promise<PopularDishResponse[]>}
+   */
+  getPopularDishes: () => apiClient.get('/public/menu/popular'),
 };
 
 export default menuApi;

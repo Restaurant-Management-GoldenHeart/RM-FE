@@ -41,6 +41,12 @@ export const authApi = {
   },
 
   /**
+   * Đăng ký tài khoản mới (role mặc định CUSTOMER).
+   * @param {{ username, email, password, fullName }} data
+   */
+  register: (data) => apiClient.post('/auth/register', data),
+
+  /**
    * Yêu cầu gửi mã OTP khôi phục mật khẩu.
    * @param {{ channel: 'EMAIL'|'SMS', identifier: string }} data
    */

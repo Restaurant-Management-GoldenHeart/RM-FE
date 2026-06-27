@@ -1,17 +1,17 @@
 /**
  * LoginPage.jsx — Trang đăng nhập với dark luxury theme
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { UtensilsCrossed, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { UtensilsCrossed, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import ForgotPasswordModal from '../components/auth/ForgotPasswordModal';
 
-// Role → default redirect path
-const ROLE_HOME = {
-  ADMIN: '/dashboard',
+// Chỉ nhân viên nội bộ mới được dùng trang này
+const STAFF_ROLE_HOME = {
+  ADMIN:   '/dashboard',
   MANAGER: '/dashboard',
-  STAFF: '/menu',
+  STAFF:   '/menu',
   KITCHEN: '/menu',
 };
 
@@ -21,14 +21,23 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [customerBlocked,   setCustomerBlocked]   = useState(false);
 
-  const { login, loading, error, isAuthenticated, role, clearError } = useAuthStore();
+  // Ref ngăn useEffect redirect trong khi handleSubmit đang xử lý blocking flow
+  const isHandlingBlock = useRef(false);
+
+  const { login, logout, loading, error, isAuthenticated, role, clearError } = useAuthStore();
   const navigate = useNavigate();
 
-  // Redirect nếu đã login
+  // Đã đăng nhập sẵn khi vào trang: staff → vào app, customer → về homepage (không logout)
+  // Bỏ qua nếu đang trong flow chặn customer từ handleSubmit
   useEffect(() => {
-    if (isAuthenticated && role) {
-      navigate(ROLE_HOME[role] || '/menu', { replace: true });
+    if (isAuthenticated && role && !isHandlingBlock.current) {
+      if (STAFF_ROLE_HOME[role]) {
+        navigate(STAFF_ROLE_HOME[role], { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
   }, [isAuthenticated, role, navigate]);
 
@@ -43,13 +52,25 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     clearError();
+    setCustomerBlocked(false);
     if (!validate()) return;
 
+    // Đánh dấu trước khi login để useEffect không redirect trong lúc chờ kết quả
+    isHandlingBlock.current = true;
     const ok = await login({ username: username.trim(), password });
+
     if (ok) {
       const currentRole = useAuthStore.getState().role;
-      navigate(ROLE_HOME[currentRole] || '/menu', { replace: true });
+      if (!STAFF_ROLE_HOME[currentRole]) {
+        // Tài khoản khách hàng không được dùng trang nội bộ → logout và thông báo
+        await logout();
+        setCustomerBlocked(true);
+      } else {
+        navigate(STAFF_ROLE_HOME[currentRole], { replace: true });
+      }
     }
+
+    isHandlingBlock.current = false;
   };
 
   return (
@@ -86,6 +107,44 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-white/[0.03] backdrop-blur-xl border border-amber-900/25 rounded-2xl p-8 shadow-2xl shadow-black/50">
+
+          {/* Màn hình chặn tài khoản khách hàng */}
+          {customerBlocked ? (
+            <div className="flex flex-col items-center text-center gap-6 py-2">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                <Lock className="w-7 h-7 text-amber-500/70" />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-amber-100 text-base font-semibold">
+                  Tài khoản không có quyền truy cập
+                </p>
+                <p className="text-amber-100/50 text-sm leading-relaxed">
+                  Trang đăng nhập này chỉ dành cho<br />
+                  <span className="text-amber-500/80">nhân viên nội bộ</span> của Golden Heart.
+                </p>
+                <p className="text-amber-900/50 text-xs leading-relaxed pt-1">
+                  Tài khoản khách hàng vui lòng đăng nhập<br />tại trang chủ của nhà hàng.
+                </p>
+              </div>
+
+              <div className="w-full space-y-3 pt-1">
+                <button
+                  onClick={() => navigate('/', { state: { openLogin: true } })}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-sm font-bold shadow-lg shadow-amber-900/40 transition-all"
+                >
+                  Đăng nhập tại trang chủ
+                </button>
+                <button
+                  onClick={() => setCustomerBlocked(false)}
+                  className="w-full py-2.5 rounded-xl border border-amber-900/25 text-amber-900/60 hover:text-amber-700 hover:border-amber-900/40 text-xs font-medium transition-all"
+                >
+                  Thử lại với tài khoản khác
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
           <h2 className="text-lg font-semibold text-amber-200 mb-6">Đăng nhập</h2>
 
           {/* API error */}
@@ -204,6 +263,8 @@ export default function LoginPage() {
           <p className="text-center text-amber-900/60 text-xs mt-6">
             Tài khoản mặc định: <span className="text-amber-700">admin</span> / <span className="text-amber-700">Admin123</span>
           </p>
+          </>
+          )}
         </div>
 
         <p className="text-center text-amber-900/40 text-xs mt-6">

@@ -5,7 +5,7 @@
  *
  * State:
  *   - user: { id, username, fullName, email, role, ... } | null
- *   - role: string | null  ("ADMIN" | "MANAGER" | "STAFF" | "KITCHEN")
+ *   - role: string | null  ("ADMIN" | "MANAGER" | "STAFF" | "KITCHEN" | "CUSTOMER")
  *   - isAuthenticated: boolean
  *   - loading: boolean
  *   - error: string | null
@@ -15,6 +15,17 @@
 import { create } from 'zustand';
 import { authApi } from '../api/authApi';
 import { getToken, removeToken } from '../api/apiClient';
+
+// Parse JWT payload locally (không cần verify — backend verify trên mỗi request)
+function parseJwtPayload(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -59,9 +70,9 @@ export const useAuthStore = create((set, get) => ({
 
   /**
    * Đăng xuất.
+   * Không set loading:true để tránh unmount các page đang hiển thị thông báo sau logout.
    */
   logout: async () => {
-    set({ loading: true });
     try {
       await authApi.logout();
     } catch {
@@ -83,7 +94,8 @@ export const useAuthStore = create((set, get) => ({
 
   /**
    * Khởi tạo auth state khi app mount.
-   * Nếu có token trong localStorage → fetch profile để verify.
+   * - CUSTOMER: dùng JWT payload (không cần /employees/me)
+   * - Staff roles: fetch /employees/me để lấy đầy đủ thông tin
    */
   initAuth: async () => {
     const token = getToken();
@@ -92,11 +104,34 @@ export const useAuthStore = create((set, get) => ({
       return;
     }
 
+    const payload = parseJwtPayload(token);
+    if (!payload) {
+      removeToken();
+      set({ isAuthenticated: false, loading: false });
+      return;
+    }
+
+    // CUSTOMER không có quyền vào /employees/me → dùng claims từ JWT
+    if (payload.role === 'CUSTOMER') {
+      set({
+        user: {
+          username: payload.sub,
+          userId: payload.userId,
+          role: 'CUSTOMER',
+        },
+        role: 'CUSTOMER',
+        isAuthenticated: true,
+        loading: false,
+      });
+      return;
+    }
+
+    // Staff roles: fetch full employee profile
     set({ loading: true });
     try {
       const profileRes = await authApi.getMyProfile();
       const profile = profileRes.data;
-      
+
       // roleName từ /employees/me (field: roleName) hoặc role
       const role = profile.roleName || profile.role || null;
       const user = { ...profile, role };
@@ -106,22 +141,15 @@ export const useAuthStore = create((set, get) => ({
         localStorage.setItem('lastBranchId', user.branchId.toString());
       }
 
-      set({
-        user,
-        role,
-        isAuthenticated: true,
-        loading: false,
-      });
+      set({ user, role, isAuthenticated: true, loading: false });
     } catch (err) {
-      // Token hết hạn hoặc không hợp lệ -> hoặc server 500
-      // Chỉ logout hoàn toàn nếu là lỗi 401 (Unauthorized) 
-      // để tránh việc server die làm user bị logout sạch data.
+      // Token hết hạn hoặc không hợp lệ → chỉ logout hoàn toàn khi 401
       if (err?.status === 401) {
         removeToken();
         localStorage.removeItem('lastBranchId');
         set({ user: null, role: null, isAuthenticated: false, loading: false });
       } else {
-        set({ loading: false }); // Lỗi mạng khác, giữ lại state cũ nếu có
+        set({ loading: false });
       }
     }
   },

@@ -1,9 +1,5 @@
-/**
- * HomePage.jsx
- * Trang chủ public — hiển thị khi user chưa đăng nhập.
- * Tất cả section nằm trong một trang cuộn dọc duy nhất.
- */
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import DoorIntro       from '../components/home/DoorIntro';
 import HomeNavbar      from '../components/home/HomeNavbar';
@@ -16,17 +12,28 @@ import ReviewsSection  from '../components/home/ReviewsSection';
 import LocationSection from '../components/home/LocationSection';
 import CtaBanner       from '../components/home/CtaBanner';
 import HomeFooter      from '../components/home/HomeFooter';
+import LoginModal      from '../components/home/LoginModal';
+import RegisterModal   from '../components/home/RegisterModal';
 
 export default function HomePage() {
-  // Door intro chỉ hiện 1 lần / session
-  const [showDoor, setShowDoor] = useState(() => !sessionStorage.getItem('gh_door_seen'));
+  const location = useLocation();
+  const [showDoor,   setShowDoor]   = useState(() => !sessionStorage.getItem('gh_door_seen'));
+  const [authModal,  setAuthModal]  = useState(
+    location.state?.openLogin ? 'login' : null
+  );
 
   const handleDoorDone = () => {
     sessionStorage.setItem('gh_door_seen', '1');
     setShowDoor(false);
   };
 
-  // Override body background cho dark theme trang chủ
+  // Xóa openLogin khỏi history state sau khi đã đọc — tránh modal tự mở lại khi refresh
+  useEffect(() => {
+    if (location.state?.openLogin) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     const prev = document.body.style.backgroundColor;
     document.body.style.backgroundColor = '#0a0906';
@@ -39,13 +46,13 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0906] overflow-x-hidden">
-      {/* Door opening intro — first visit only */}
       {showDoor && <DoorIntro onComplete={handleDoorDone} />}
 
-      {/* Fixed navigation */}
-      <HomeNavbar />
+      <HomeNavbar
+        onLoginClick={()    => setAuthModal('login')}
+        onRegisterClick={() => setAuthModal('register')}
+      />
 
-      {/* Page sections */}
       <main>
         <HeroSection />
         <StatsSection />
@@ -58,6 +65,17 @@ export default function HomePage() {
       </main>
 
       <HomeFooter />
+
+      <LoginModal
+        isOpen={authModal === 'login'}
+        onClose={()          => setAuthModal(null)}
+        onSwitchToRegister={() => setAuthModal('register')}
+      />
+      <RegisterModal
+        isOpen={authModal === 'register'}
+        onClose={()        => setAuthModal(null)}
+        onSwitchToLogin={() => setAuthModal('login')}
+      />
     </div>
   );
 }

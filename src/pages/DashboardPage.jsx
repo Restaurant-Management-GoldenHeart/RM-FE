@@ -707,48 +707,40 @@ export default function DashboardPage() {
 
         {canSeeFinance ? (
           <section className="space-y-6">
-            <Panel
-              title="Phân tích tài chính"
-              action={
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterTabs value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
-                </div>
-              }
-            >
+            <Panel title="Phân tích tài chính">
               <div className="space-y-6">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="text-sm font-semibold text-slate-600">
-                      Từ ngày
-                      <input
-                        type="date"
-                        value={normalizedDateRange.fromDate}
-                        onChange={(event) => setFromDate(event.target.value)}
-                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-all focus:border-gold-300"
-                      />
-                    </label>
-                    <label className="text-sm font-semibold text-slate-600">
-                      Đến ngày
-                      <input
-                        type="date"
-                        value={normalizedDateRange.toDate}
-                        onChange={(event) => setToDate(event.target.value)}
-                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-all focus:border-gold-300"
-                      />
-                    </label>
-                    <div className="text-sm font-semibold text-slate-600">
-                      Nhóm dữ liệu
-                      <div className="mt-2">
-                        <FilterTabs value={groupBy} options={GROUP_OPTIONS} onChange={setGroupBy} />
-                      </div>
-                    </div>
+                {/* ── Control toolbar ── */}
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+
+                  {/* Nhóm 1: Kỳ nhanh */}
+                  <div className="flex items-center gap-2">
+                    <CalendarDays size={14} className="shrink-0 text-slate-400" />
+                    <FilterTabs value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
                   </div>
 
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Kỳ tổng hợp hiện tại</p>
-                    <p className="mt-2 text-sm font-bold text-slate-700">
-                      {revenueSummary?.fromDate || normalizedDateRange.fromDate} đến {revenueSummary?.toDate || normalizedDateRange.toDate}
-                    </p>
+                  <div className="hidden h-7 w-px bg-slate-200 sm:block" />
+
+                  {/* Nhóm 2: Khoảng ngày tuỳ chỉnh */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={normalizedDateRange.fromDate}
+                      onChange={(event) => setFromDate(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none transition-all focus:border-gold-300"
+                    />
+                    <ArrowRight size={12} className="shrink-0 text-slate-300" />
+                    <input
+                      type="date"
+                      value={normalizedDateRange.toDate}
+                      onChange={(event) => setToDate(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none transition-all focus:border-gold-300"
+                    />
+                  </div>
+
+                  {/* Nhóm 3: Granularity biểu đồ — đẩy sang phải */}
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Xem theo</span>
+                    <FilterTabs value={groupBy} options={GROUP_OPTIONS} onChange={setGroupBy} />
                   </div>
                 </div>
 

@@ -15,9 +15,13 @@ import {
   Menu,
   X,
   Package,
+  Package2,
   LayoutGrid,
+  PackageX,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { wasteApi } from '../../api/wasteApi';
 
 const NAV_ITEMS = [
   {
@@ -51,6 +55,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN'],
   },
   {
+    to: '/combos',
+    label: 'Combo',
+    icon: Package2,
+    roles: ['ADMIN', 'MANAGER'],
+  },
+  {
     to: '/pos',
     label: 'Bán hàng (POS)',
     icon: ShoppingCart,
@@ -60,6 +70,12 @@ const NAV_ITEMS = [
     to: '/inventory',
     label: 'Kho',
     icon: Package,
+    roles: ['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN'],
+  },
+  {
+    to: '/waste-requests',
+    label: 'Xuất hủy kho',
+    icon: PackageX,
     roles: ['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN'],
   },
   {
@@ -81,6 +97,15 @@ const ROLE_BADGE = {
 export default function Sidebar({ collapsed, onToggle }) {
   const { user, role, logout } = useAuthStore();
   const navigate = useNavigate();
+  const canReview = ['ADMIN', 'MANAGER'].includes(role);
+
+  const { data: wastePendingCount = 0 } = useQuery({
+    queryKey: ['waste-pending-count'],
+    queryFn: () => wasteApi.countPending().then((r) => r.data),
+    enabled: canReview,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -133,24 +158,40 @@ export default function Sidebar({ collapsed, onToggle }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2">
-        {visibleItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            title={collapsed ? label : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group
-              ${isActive
-                ? 'bg-gray-900 text-white font-semibold shadow-md'
-                : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'
+        {visibleItems.map(({ to, label, icon: Icon }) => {
+          const isWaste = to === '/waste-requests';
+          const showBadge = isWaste && canReview && wastePendingCount > 0;
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              title={collapsed ? label : undefined}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group
+                ${isActive
+                  ? 'bg-gray-900 text-white font-semibold shadow-md'
+                  : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'
+                }
+                ${collapsed ? 'justify-center' : ''}`
               }
-              ${collapsed ? 'justify-center' : ''}`
-            }
-          >
-            <Icon size={18} className="flex-shrink-0" />
-            {!collapsed && <span className="text-[13px]">{label}</span>}
-          </NavLink>
-        ))}
+            >
+              <div className="relative flex-shrink-0">
+                <Icon size={18} />
+                {showBadge && collapsed && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border border-white" />
+                )}
+              </div>
+              {!collapsed && (
+                <span className="text-[13px] flex-1">{label}</span>
+              )}
+              {!collapsed && showBadge && (
+                <span className="ml-auto px-1.5 py-0.5 text-[9px] font-black bg-red-500 text-white rounded-full leading-none">
+                  {wastePendingCount > 99 ? '99+' : wastePendingCount}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Toggle + Logout */}

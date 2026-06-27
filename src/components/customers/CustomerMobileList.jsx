@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2, UserCircle, Star, Tag, Clock } from 'lucide-react';
+import { Edit2, Trash2, UserCircle, Star, Tag, Clock, ShieldCheck } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 
@@ -54,11 +54,16 @@ export default function CustomerMobileList({ customers = [], loading, isAdmin, o
                 {(cus.name || '?')[0].toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="font-black text-gray-900 text-sm leading-tight truncate">{cus.name}</h4>
                   {cus.customerCode && (
                     <span className="font-mono text-[9px] font-black tracking-widest text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded-md">
                       {cus.customerCode}
+                    </span>
+                  )}
+                  {cus.hasAccount && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Online
                     </span>
                   )}
                 </div>

@@ -15,9 +15,18 @@ import HomePage from './pages/HomePage';
  */
 
 import MainLayout from './components/layout/MainLayout';
+import AccountLayout from './pages/account/AccountLayout';
+import AccountDashboardPage from './pages/account/AccountDashboardPage';
+import LoyaltyPage from './pages/account/LoyaltyPage';
+import OrderHistoryPage from './pages/account/OrderHistoryPage';
+import DishHistoryPage from './pages/account/DishHistoryPage';
+import ReviewsPage from './pages/account/ReviewsPage';
+import CouponsPage from './pages/account/CouponsPage';
+import AccountProfilePage from './pages/account/AccountProfilePage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import MenuPage from './pages/MenuPage';
+import ComboManagementPage from './pages/ComboManagementPage';
 import ProfilePage from './pages/ProfilePage';
 import EmployeesPage from './pages/EmployeesPage';
 import CustomersPage from './pages/CustomersPage';
@@ -26,6 +35,7 @@ import StaffPosPage from './pages/StaffPosPage';
 import KitchenPage from './pages/KitchenPage';
 import InventoryPage from './pages/InventoryPage';
 import InventoryHistoryPage from './pages/InventoryHistoryPage';
+import WasteRequestPage from './pages/WasteRequestPage';
 import PayOsResultPage from './pages/PayOsResultPage';
 
 // ─── ROLE GUARD ───────────────────────────────────────────────────────────────
@@ -33,11 +43,18 @@ function RoleGuard({ allowedRoles, children }) {
   const { role, isAuthenticated } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(role)) {
-    // Redirect về trang phù hợp nhất theo role
     if (role === 'KITCHEN') return <Navigate to="/kitchen" replace />;
     if (role === 'STAFF') return <Navigate to="/pos" replace />;
     return <Navigate to="/dashboard" replace />;
   }
+  return children;
+}
+
+/** Guard chỉ cho phép CUSTOMER — redirect về homepage nếu chưa đăng nhập hoặc sai role. */
+function CustomerGuard({ children }) {
+  const { role, isAuthenticated } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (role !== 'CUSTOMER') return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -122,6 +139,16 @@ function AppRoutes() {
           }
         />
 
+        {/* Combo — ADMIN, MANAGER */}
+        <Route
+          path="/combos"
+          element={
+            <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+              <ComboManagementPage />
+            </RoleGuard>
+          }
+        />
+
         {/* Inventory — All authenticated */}
         <Route
           path="/inventory"
@@ -137,6 +164,16 @@ function AppRoutes() {
           element={
             <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
               <InventoryHistoryPage />
+            </RoleGuard>
+          }
+        />
+
+        {/* Waste Requests — All authenticated */}
+        <Route
+          path="/waste-requests"
+          element={
+            <RoleGuard allowedRoles={['ADMIN', 'MANAGER', 'STAFF', 'KITCHEN']}>
+              <WasteRequestPage />
             </RoleGuard>
           }
         />
@@ -170,6 +207,20 @@ function AppRoutes() {
             </RoleGuard>
           }
         />
+      </Route>
+
+      {/* Customer Portal — chỉ role CUSTOMER */}
+      <Route
+        path="/account"
+        element={<CustomerGuard><AccountLayout /></CustomerGuard>}
+      >
+        <Route index element={<AccountDashboardPage />} />
+        <Route path="loyalty" element={<LoyaltyPage />} />
+        <Route path="orders" element={<OrderHistoryPage />} />
+        <Route path="dishes" element={<DishHistoryPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
+        <Route path="coupons" element={<CouponsPage />} />
+        <Route path="profile" element={<AccountProfilePage />} />
       </Route>
 
       {/* Root — public homepage */}

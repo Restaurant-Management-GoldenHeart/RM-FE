@@ -62,16 +62,21 @@ export default function InventoryImportModal({ isOpen, onClose, branchId, branch
   const handleDownloadTemplate = async () => {
     try {
       setIsDownloading(true);
-      const blob = await inventoryApi.downloadImportTemplate();
+      const blob = await inventoryApi.downloadImportTemplate(branchId || undefined);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'goldenheart_inventory_import_template.xlsx';
+      const safeName = (branchName || 'chinhanh').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      link.download = branchId
+        ? `goldenheart_import_${safeName}_template.xlsx`
+        : 'goldenheart_inventory_import_template.xlsx';
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success('Đã tải file mẫu import kho');
+      toast.success(branchId
+        ? `Đã tải template nguyên liệu cho ${branchName || 'chi nhánh này'}`
+        : 'Đã tải file mẫu import kho (trống)');
     } catch (err) {
       toast.error(extractErrorMessage(err, 'Không tải được file mẫu import.'));
     } finally {

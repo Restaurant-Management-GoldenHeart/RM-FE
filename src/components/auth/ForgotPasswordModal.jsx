@@ -294,7 +294,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
             <div
                 className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ${show ? 'opacity-100' : 'opacity-0'
                     }`}

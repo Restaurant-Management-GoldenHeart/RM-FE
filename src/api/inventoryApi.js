@@ -72,9 +72,10 @@ export const inventoryApi = {
     return apiClient.delete(`/inventory/${inventoryId}`);
   },
 
-  // 9. Tải file mẫu import nhập kho
-  downloadImportTemplate: async () => {
-    return apiClient.get('/inventory/import/template', { responseType: 'blob' });
+  // 9. Tải file mẫu import nhập kho (branchId → pre-filled template cho chi nhánh đó)
+  downloadImportTemplate: async (branchId) => {
+    const params = branchId ? { branchId } : {};
+    return apiClient.get('/inventory/import/template', { params, responseType: 'blob' });
   },
 
   // 10. Preview file Excel trước khi ghi kho

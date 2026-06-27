@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   Users,
   UserCircle,
-  UtensilsCrossed, 
-  ShoppingCart, 
-  Package, 
+  UtensilsCrossed,
+  ShoppingCart,
+  Package,
   Flame,
+  PackageX,
 } from 'lucide-react';
 
 const getMobileNav = (role) => {
@@ -32,6 +33,7 @@ const getMobileNav = (role) => {
     { to: '/kitchen', label: 'Bếp', icon: Flame },
     { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
     { to: '/inventory', label: 'Kho', icon: Package },
+    { to: '/waste-requests', label: 'Xuất hủy', icon: PackageX },
   ];
 
   if (role === 'ADMIN' || role === 'MANAGER') return adminManager;

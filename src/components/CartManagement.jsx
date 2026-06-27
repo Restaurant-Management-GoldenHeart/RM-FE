@@ -21,7 +21,7 @@ import {
   Minus, Plus, Trash2, ShoppingBag,
   Receipt, ChefHat, Check, Loader2,
   MessageSquare,
-  AlertTriangle, PackageX
+  AlertTriangle, PackageX, ChevronDown, Package2
 } from 'lucide-react';
 import PaymentModal from './pos/PaymentModal';
 import CustomerSelector from './pos/CustomerSelector';
@@ -122,6 +122,106 @@ const DraftItemRow = ({ tableId, item }) => {
           placeholder="Thêm ghi chú..."
           className="w-full px-2.5 py-1.5 md:px-3 md:py-2 bg-gray-50 border border-gray-100 rounded-lg md:rounded-xl text-[10px] md:text-xs outline-none focus:border-gold-300 transition-all font-medium"
         />
+      )}
+    </div>
+  );
+};
+
+// ─── Combo Draft Row (Combo chưa gửi bếp) ───
+const ComboDraftRow = ({ tableId, item }) => {
+  const updateComboQuantity = useCartStore(s => s.updateComboQuantity);
+  const insufficientItems = useCartStore(s => s.insufficientItems);
+  const [expanded, setExpanded] = useState(false);
+
+  const hasShortage = item.items?.some(ci => {
+    const s = insufficientItems[ci.menuItemId];
+    return s !== null && s?.length > 0;
+  });
+
+  return (
+    <div className={cn(
+      'flex flex-col gap-1.5 md:gap-2 p-3 md:p-4 rounded-xl md:rounded-2xl border shadow-sm animate-in slide-in-from-right duration-300',
+      hasShortage ? 'bg-red-50/60 border-red-300 ring-1 ring-red-200' : 'bg-amber-50/40 border-amber-100'
+    )}>
+      {/* Header row */}
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* Tên combo — click để expand */}
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="flex-1 min-w-0 flex items-center gap-2 text-left"
+        >
+          <span className={cn('w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0', hasShortage ? 'bg-red-500 animate-pulse' : 'bg-green-500')} />
+          <Package2 size={13} className={cn('shrink-0', hasShortage ? 'text-red-400' : 'text-green-600')} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={cn('font-black text-xs md:text-sm uppercase tracking-tight truncate', hasShortage ? 'text-red-700' : 'text-gray-900')}>
+                {item.name}
+              </span>
+              <span className="shrink-0 bg-green-100 text-green-700 text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                -{item.discountPct}%
+              </span>
+            </div>
+            <p className={cn('text-[10px] md:text-xs font-black mt-0.5', hasShortage ? 'text-red-400' : 'text-green-600')}>
+              {formatVND(item.price)} / combo
+            </p>
+          </div>
+          <ChevronDown
+            size={14}
+            className={cn('shrink-0 text-gray-400 transition-transform duration-200', expanded && 'rotate-180')}
+          />
+        </button>
+
+        {/* Qty controls */}
+        <div className="flex items-center gap-1 bg-gray-50 rounded-lg md:rounded-xl p-0.5 md:p-1 border border-gray-100 shrink-0">
+          <button
+            onClick={() => updateComboQuantity(tableId, item.comboId, item.quantity - 1)}
+            className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center text-gray-400 hover:text-red-600 rounded-lg hover:bg-white transition-colors"
+          >
+            <Minus size={12} />
+          </button>
+          <span className="text-[11px] md:text-sm font-black w-4 md:w-6 text-center tabular-nums text-gray-900">{item.quantity}</span>
+          <button
+            onClick={() => updateComboQuantity(tableId, item.comboId, item.quantity + 1)}
+            className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center text-gray-400 hover:text-gold-600 rounded-lg hover:bg-white transition-colors"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={() => updateComboQuantity(tableId, item.comboId, 0)}
+          className="w-7 h-7 md:w-9 md:h-9 flex items-center justify-center rounded-lg md:rounded-xl transition-all border border-red-50 text-red-200 hover:text-red-500 hover:bg-red-50 shrink-0"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+
+      {/* Danh sách món con — hiện khi expand */}
+      {expanded && (
+        <div className="ml-5 pl-3 border-l-2 border-dashed border-amber-200 space-y-1 mt-0.5">
+          {item.items?.map(ci => (
+            <div
+              key={ci.menuItemId}
+              className={cn(
+                'flex items-center gap-2 text-[10px] md:text-xs',
+                insufficientItems[ci.menuItemId]?.length > 0 ? 'text-red-500' : 'text-gray-500'
+              )}
+            >
+              <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+              <span className="font-medium flex-1 truncate">{ci.name}</span>
+              <span className="text-gray-400 shrink-0">×{ci.quantity}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Shortage warning */}
+      {hasShortage && (
+        <div className="flex items-center gap-1.5 px-1 mt-0.5">
+          <PackageX size={10} className="text-red-500 shrink-0" />
+          <p className="text-[9px] md:text-[10px] font-bold text-red-600">Thiếu nguyên liệu trong combo này</p>
+        </div>
       )}
     </div>
   );
@@ -408,7 +508,11 @@ export const CartPanel = () => {
             )}
 
             <div className="space-y-2">
-              {draftItems.map(item => <DraftItemRow key={item.menuItemId} tableId={selectedTableId} item={item} />)}
+              {draftItems.map(item =>
+                item.type === 'COMBO'
+                  ? <ComboDraftRow key={`combo-${item.comboId}`} tableId={selectedTableId} item={item} />
+                  : <DraftItemRow key={item.menuItemId} tableId={selectedTableId} item={item} />
+              )}
             </div>
           </div>
         )}

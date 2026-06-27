@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Package, Calculator, ArrowRight, Save, Scale } from 'lucide-react';
+import { X, Package, Calculator, Save, Scale } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const todayIso = () => new Date().toLocaleDateString('sv-SE');
@@ -7,6 +7,8 @@ const fmtNumber = (n) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits:
 const fmtCurrency = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n || 0));
 
 const cleanNumber = (value) => value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+
+const inputClass = 'h-12 w-full px-4 rounded-2xl border border-gray-100 bg-gray-50/80 font-bold text-gray-900 text-sm focus:outline-none focus:border-orange-300 focus:bg-white transition-all placeholder:text-gray-300 placeholder:font-normal';
 
 export default function RestockModal({ isOpen, onClose, onSubmit, item, units = [], isLoading }) {
   const [formData, setFormData] = useState({
@@ -127,13 +129,20 @@ export default function RestockModal({ isOpen, onClose, onSubmit, item, units = 
 
           <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 space-y-4">
             <div className="flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase tracking-widest"><Scale size={14} /> Quy đổi tồn kho</div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
-              <Field label="1 đơn vị mua bằng">
-                <input value={formData.purchaseToBaseRate} onChange={(e) => updateField('purchaseToBaseRate', e.target.value)} placeholder="VD: 500" className={`${inputClass} bg-white`} />
-              </Field>
-              <div className="hidden md:flex h-12 items-center text-gray-300"><ArrowRight size={22} /></div>
-              <div className="h-12 px-4 rounded-2xl bg-white border border-gray-100 flex items-center font-black text-gray-900">
-                {baseUnit?.symbol || item?.unitSymbol || 'base unit'}
+            <div className="flex items-center gap-2">
+              <div className="h-12 px-4 rounded-2xl bg-white border border-gray-100 flex items-center gap-1.5 shrink-0">
+                <span className="text-sm font-bold text-gray-400">1</span>
+                <span className="text-sm font-black text-gray-900">{purchaseUnit?.symbol || purchaseUnit?.name || '—'}</span>
+              </div>
+              <span className="text-gray-400 font-black text-xl shrink-0">=</span>
+              <input
+                value={formData.purchaseToBaseRate}
+                onChange={(e) => updateField('purchaseToBaseRate', e.target.value)}
+                placeholder="VD: 2.5"
+                className={`${inputClass} bg-white min-w-0 flex-1`}
+              />
+              <div className="h-12 px-4 rounded-2xl bg-white border border-gray-100 flex items-center font-black text-gray-900 shrink-0">
+                {baseUnit?.symbol || item?.unitSymbol || '—'}
               </div>
             </div>
             <label className="inline-flex items-center gap-2 text-xs font-bold text-gray-500">

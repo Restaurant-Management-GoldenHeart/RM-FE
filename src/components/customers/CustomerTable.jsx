@@ -1,8 +1,8 @@
 import React from 'react';
-import { 
-  Edit2, Trash2, UserCircle, Star, 
+import {
+  Edit2, Trash2, UserCircle, Star,
   Clock, Calendar, ChevronLeft, ChevronRight,
-  User 
+  User, ShieldCheck
 } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
@@ -78,7 +78,14 @@ export const CustomerTable = ({
                         {(cus.name || '?')[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-gray-900 font-bold text-sm tracking-tight">{cus.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-gray-900 font-bold text-sm tracking-tight">{cus.name}</p>
+                          {cus.hasAccount && (
+                            <span title="Khách có tài khoản đăng ký online" className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                              <ShieldCheck className="w-2.5 h-2.5" /> Online
+                            </span>
+                          )}
+                        </div>
                         <p className="text-gray-400 text-[11px] font-medium mt-0.5">{cus.email || 'Hệ thống nội bộ'}</p>
                       </div>
                     </div>

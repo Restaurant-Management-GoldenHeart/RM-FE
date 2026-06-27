@@ -87,6 +87,26 @@ const PAYOS_STATUS_LABELS = {
 
 const PAYOS_POLL_INTERVAL = 3000;
 const PAYOS_SESSION_PREFIX = 'goldenheart-payos-order-';
+
+// Màu sắc theo hạng thành viên — đồng bộ với TierBadge.jsx
+const TIER_PALETTE = {
+  dong:     { color: '#b45309', border: '#b453094d', bg: 'rgba(251,191,36,0.07)',  bar: '#f59e0b', label: 'Đồng'     },
+  bac:      { color: '#64748b', border: '#64748b4d', bg: 'rgba(148,163,184,0.08)', bar: '#94a3b8', label: 'Bạc'      },
+  vang:     { color: '#ca8a04', border: '#ca8a044d', bg: 'rgba(202,138,4,0.07)',   bar: '#ca8a04', label: 'Vàng'     },
+  bach_kim: { color: '#3b82f6', border: '#3b82f64d', bg: 'rgba(147,197,253,0.08)', bar: '#60a5fa', label: 'Bạch kim' },
+  kim_cuong:{ color: '#0891b2', border: '#0891b24d', bg: 'rgba(103,232,249,0.08)', bar: '#22d3ee', label: 'Kim cương'},
+  default:  { color: '#6b7280', border: '#6b728033', bg: 'rgba(243,244,246,0.6)',  bar: '#9ca3af', label: 'Thành viên'},
+};
+
+const getTierPalette = (tierName) => {
+  const n = (tierName || '').toLowerCase();
+  if (n.includes('kim cương') || n.includes('kim cuong')) return TIER_PALETTE.kim_cuong;
+  if (n.includes('bạch kim') || n.includes('bach kim'))   return TIER_PALETTE.bach_kim;
+  if (n.includes('vàng') || n.includes('vang'))           return TIER_PALETTE.vang;
+  if (n.includes('bạc') || n.includes('bac'))             return TIER_PALETTE.bac;
+  if (n.includes('đồng') || n.includes('dong'))           return TIER_PALETTE.dong;
+  return TIER_PALETTE.default;
+};
 const INVOICE_DOWNLOAD_RETRY_LIMIT = 5;
 const INVOICE_DOWNLOAD_RETRY_DELAY = 700;
 
@@ -544,6 +564,10 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
     };
   }, [customerProfile, hasCustomer, previewData, tiers]);
 
+  // Màu hạng hiện tại và hạng tiếp theo
+  const tc  = getTierPalette(customerProfile?.tierName ?? previewData?.currentTierName ?? order?.customer?.tierName);
+  const ntc = getTierPalette(loyaltyProgress?.nextTier?.name);
+
   const paymentItems = useMemo(() => {
     if (!order) return [];
     return order.summaryItems?.length ? order.summaryItems : groupOrderItemsForSummary(order.items || []);
@@ -943,7 +967,7 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
       <div className="relative mt-auto flex h-[90vh] w-full flex-col overflow-hidden rounded-t-[2.5rem] bg-white shadow-2xl animate-in slide-in-from-bottom-8 lg:mt-0 lg:h-[720px] lg:max-w-5xl lg:flex-row lg:rounded-[2.5rem]">
         <div
           className={cn(
-            'flex-col overflow-hidden border-gray-100 bg-gray-50/50 p-5 lg:flex lg:w-[400px] lg:border-r lg:p-8',
+            'flex-col overflow-hidden border-gray-200 bg-white p-5 lg:flex lg:w-[400px] lg:border-r lg:p-7',
             mobileView === 'INVOICE' ? 'flex flex-1' : 'hidden'
           )}
         >
@@ -958,74 +982,85 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
             <span className="text-[9px] font-bold uppercase text-gray-400">{table.tableNumber}</span>
           </div>
 
-          <div className="mb-6 hidden items-center gap-3 lg:flex">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-600 shadow-lg shadow-gold-600/20">
-              <ReceiptText size={20} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black uppercase text-gray-900">Hoa don</h3>
-              <p className="text-[10px] font-bold uppercase text-gray-400">{table.tableNumber}</p>
-            </div>
+          {/* Bill header — giống header hóa đơn PDF */}
+          <div className="mb-5 hidden border-b border-gray-200 pb-4 lg:block">
+            <p className="text-[9px] font-black uppercase tracking-[0.26em] text-gray-400">GoldenHeart POS</p>
+            <h3 className="mt-1 text-xl font-black uppercase tracking-tight text-gray-900">Hóa Đơn</h3>
+            <p className="mt-0.5 text-[10px] font-bold text-gray-400">{table.tableNumber}</p>
           </div>
 
-          <div className="no-scrollbar flex-1 space-y-2.5 overflow-y-auto pr-1">
-            {paymentItems.map((item) => (
-              <div key={`${item.menuItemId}-${item.price}-${item.note || ''}`} className="flex items-start justify-between py-0.5">
-                <div className="flex-1 pr-3">
-                  <p className="truncate text-[10px] font-bold text-gray-800">{item.name}</p>
-                  <p className="text-[8px] font-bold text-gray-400">
-                    {item.quantity} x {formatVND(item.price)}
-                  </p>
-                </div>
-                <p className="tabular-nums text-[10px] font-black text-gray-900">
-                  {formatVND(item.lineTotal ?? item.price * item.quantity)}
-                </p>
-              </div>
-            ))}
+          {/* Items — dạng bảng giống bill PDF */}
+          <div className="no-scrollbar flex-1 overflow-y-auto">
+            <table className="w-full border-collapse">
+              <colgroup>
+                <col style={{ width: '44%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '26%' }} />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-gray-300">
+                  <th className="pb-2 text-left text-[8px] font-black uppercase tracking-[0.16em] text-gray-400">Món ăn</th>
+                  <th className="pb-2 text-center text-[8px] font-black uppercase tracking-[0.16em] text-gray-400">SL</th>
+                  <th className="pb-2 text-right text-[8px] font-black uppercase tracking-[0.16em] text-gray-400">Đơn giá</th>
+                  <th className="pb-2 text-right text-[8px] font-black uppercase tracking-[0.16em] text-gray-400">Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentItems.map((item) => (
+                  <tr key={`${item.menuItemId}-${item.price}-${item.note || ''}`} className="border-b border-gray-100">
+                    <td className="py-2 pr-2 text-[11px] font-bold text-gray-900">{item.name}</td>
+                    <td className="py-2 text-center text-[10px] tabular-nums text-gray-500">{item.quantity}</td>
+                    <td className="py-2 text-right text-[10px] tabular-nums text-gray-500 whitespace-nowrap">{formatVND(item.price)}</td>
+                    <td className="py-2 text-right text-[11px] font-bold tabular-nums text-gray-900 whitespace-nowrap">{formatVND(item.lineTotal ?? item.price * item.quantity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          <div className="mt-3 shrink-0 space-y-1.5 border-t border-gray-200 pt-3">
+          {/* Footer totals */}
+          <div className="mt-3 shrink-0 space-y-1.5 border-t border-gray-900 pt-3">
             <div className="flex items-center justify-between text-[9px] font-bold uppercase text-gray-400">
-              <span>Tam tinh</span>
-              <span className="text-gray-900">{formatVND(subTotal)}</span>
+              <span>Tạm tính</span>
+              <span className="tabular-nums text-gray-700">{formatVND(subTotal)}</span>
             </div>
             <div className="flex items-center justify-between text-[9px] font-bold uppercase text-gray-400">
               <span>VAT ({taxRate}%)</span>
-              <span className="text-gray-900">{formatVND(taxAmount)}</span>
+              <span className="tabular-nums text-gray-700">{formatVND(taxAmount)}</span>
             </div>
             {hasCustomer && (
               <div className={cn(
                 'flex items-center justify-between text-[9px] font-bold uppercase',
-                loyaltyApplied ? 'text-emerald-600' : 'text-gray-400'
+                loyaltyApplied ? 'text-gray-700' : 'text-gray-400'
               )}>
                 <span>Member ({formatPercent(currentTierRate)})</span>
-                <span className="font-black">
+                <span className="tabular-nums font-black">
                   {loyaltyApplied ? `-${formatVND(memberDiscountValue)}` : formatVND(0)}
                 </span>
               </div>
             )}
             {previewData?.manualDiscount > 0 && (
-              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-amber-600">
-                <span>Giam gia</span>
-                <span className="font-black">-{formatVND(previewData.manualDiscount)}</span>
-              </div>
-            )}
-
-            {hasRecordedPayments && (
-              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-emerald-600">
-                <span>Da thanh toan</span>
-                <span className="font-black">{formatVND(activeBill?.paidAmount)}</span>
+              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-gray-700">
+                <span>Giảm giá</span>
+                <span className="tabular-nums font-black">-{formatVND(previewData.manualDiscount)}</span>
               </div>
             )}
             {hasRecordedPayments && (
-              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-slate-600">
-                <span>Con phai thu</span>
-                <span className="font-black">{formatVND(amountDueNow)}</span>
+              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-gray-600">
+                <span>Đã thanh toán</span>
+                <span className="tabular-nums font-black">{formatVND(activeBill?.paidAmount)}</span>
               </div>
             )}
-            <div className="flex items-end justify-between pt-2">
-              <span className="text-[10px] font-black uppercase text-gray-900">Tong cong</span>
-              <span className="text-xl font-black text-gold-600">{formatVND(total)}</span>
+            {hasRecordedPayments && (
+              <div className="flex items-center justify-between text-[9px] font-bold uppercase text-gray-600">
+                <span>Còn phải thu</span>
+                <span className="tabular-nums font-black">{formatVND(amountDueNow)}</span>
+              </div>
+            )}
+            <div className="flex items-end justify-between border-t border-dashed border-gray-300 pt-2.5">
+              <span className="text-[10px] font-black uppercase text-gray-900">Tổng cộng</span>
+              <span className="text-xl font-black text-gray-900">{formatVND(total)}</span>
             </div>
           </div>
         </div>
@@ -1063,105 +1098,119 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
           <div className="no-scrollbar flex-1 overflow-y-auto px-6 pb-2">
             <div className="mb-4 space-y-4">
               {hasCustomer ? (
-                <div className="rounded-[1.75rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 shadow-sm">
+                <div
+                  className="rounded-2xl border p-4"
+                  style={{ borderColor: tc.border, backgroundColor: tc.bg }}
+                >
+                  {/* Header: tên KH + tier badge + điểm */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-emerald-500">
-                        Khach hang
+                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-gray-400">
+                        Khách hàng
                       </p>
                       <h3 className="mt-2 truncate text-sm font-black text-gray-900">{customerName}</h3>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-white/80 px-2.5 py-1 text-[9px] font-black uppercase text-emerald-700">
+                        {/* Tier badge — màu theo hạng */}
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase"
+                          style={{ color: tc.color, borderColor: tc.border, backgroundColor: 'white' }}
+                        >
                           <UserRound size={10} />
-                          {customerProfile?.tierName || previewData?.currentTierName || order?.customer?.tierName || 'Thanh vien'}
+                          {customerProfile?.tierName || previewData?.currentTierName || order?.customer?.tierName || 'Thành viên'}
                         </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/80 px-2.5 py-1 text-[9px] font-black uppercase text-gray-600">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[9px] font-black uppercase text-gray-600">
                           <Star size={10} />
-                          {formatPoints(loyaltyProgress?.currentPoints ?? 0)} diem
+                          {formatPoints(loyaltyProgress?.currentPoints ?? 0)} điểm
                         </span>
                       </div>
                     </div>
 
-                    <div className="shrink-0 rounded-2xl border border-white bg-white/80 px-3 py-2 text-right shadow-sm">
-                      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-400">Hoa don nay</p>
-                      <p className="mt-1 text-sm font-black text-emerald-600">
+                    {/* Điểm kiếm từ hóa đơn này */}
+                    <div
+                      className="shrink-0 rounded-xl border bg-white px-3 py-2 text-right"
+                      style={{ borderColor: tc.border }}
+                    >
+                      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-400">Hóa đơn này</p>
+                      <p className="mt-1 text-sm font-black" style={{ color: tc.color }}>
                         +{formatPoints(loyaltyProgress?.earnedPoints ?? 0)}
                       </p>
                     </div>
                   </div>
 
+                  {/* Progress tier */}
                   {tiersLoading || customerLoading ? (
                     <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400">
                       <Loader2 size={12} className="animate-spin" />
-                      Dang tai thong tin hoi vien
+                      Đang tải thông tin hội viên
                     </div>
                   ) : loyaltyProgress?.nextTier ? (
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-[9px] font-black uppercase">
-                        <span className="text-gray-500">
-                          {loyaltyProgress.currentTier?.name || 'Khoi diem'}
+                        <span style={{ color: tc.color }}>
+                          {loyaltyProgress.currentTier?.name || 'Khởi điểm'}
                         </span>
-                        <span className="text-emerald-700">{loyaltyProgress.nextTier.name}</span>
+                        <span style={{ color: ntc.color }}>{loyaltyProgress.nextTier.name}</span>
                       </div>
-                      <div className="mt-2 h-2.5 overflow-hidden rounded-full border border-emerald-100 bg-white/80">
+                      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/70">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-amber-400 transition-all duration-500"
-                          style={{ width: `${loyaltyProgress.progress}%` }}
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${loyaltyProgress.progress}%`, background: `linear-gradient(to right, ${tc.bar}, ${ntc.bar})` }}
                         />
                       </div>
-                      <p className="mt-2 text-[10px] font-bold leading-relaxed text-gray-600">
+                      <p className="mt-2 text-[10px] font-bold leading-relaxed text-gray-500">
                         {loyaltyProgress.reachesNextTier
-                          ? `Sau hoa don nay khach du dieu kien len hang ${loyaltyProgress.nextTier.name}.`
-                          : `Sau hoa don nay con ${formatPoints(loyaltyProgress.remainingAfterPayment)} diem de dat ${loyaltyProgress.nextTier.name}.`}
+                          ? `Sau hóa đơn này khách đủ điều kiện lên hạng ${loyaltyProgress.nextTier.name}.`
+                          : `Sau hóa đơn này còn ${formatPoints(loyaltyProgress.remainingAfterPayment)} điểm để đạt ${loyaltyProgress.nextTier.name}.`}
                       </p>
                     </div>
                   ) : (
-                    <div className="mt-4 rounded-2xl border border-amber-100 bg-white/80 px-3 py-3">
-                      <p className="text-[10px] font-bold leading-relaxed text-amber-700">
-                        Khach hang dang o hang cao nhat. Hoa don nay van tiep tuc cong diem tich luy.
+                    <div className="mt-4 rounded-xl border bg-white/80 px-3 py-3" style={{ borderColor: tc.border }}>
+                      <p className="text-[10px] font-bold leading-relaxed text-gray-500">
+                        Khách hàng đang ở hạng cao nhất. Hóa đơn này vẫn tiếp tục cộng điểm tích lũy.
                       </p>
                     </div>
                   )}
 
+                  {/* Loyalty discount toggle */}
                   {!tiersLoading && !customerLoading && canApplyLoyalty && (
                     <button
                       onClick={() => setApplyLoyalty((current) => !current)}
                       disabled={lockPricingInputs}
                       className={cn(
-                        'mt-4 w-full rounded-2xl border px-4 py-3 text-left transition-all',
-                        loyaltyApplied
-                          ? 'border-emerald-300 bg-emerald-50 shadow-sm'
-                          : 'border-gray-200 bg-white/90 hover:border-emerald-200 hover:bg-emerald-50/60',
+                        'mt-4 w-full rounded-xl border bg-white px-4 py-3 text-left transition-all',
                         lockPricingInputs && 'cursor-not-allowed opacity-60'
                       )}
+                      style={loyaltyApplied
+                        ? { borderColor: tc.color, boxShadow: `0 0 0 1px ${tc.border}` }
+                        : { borderColor: '#e5e7eb' }
+                      }
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <div
-                            className={cn(
-                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2',
-                              loyaltyApplied
-                                ? 'border-emerald-600 bg-emerald-600 text-white'
-                                : 'border-gray-300 bg-white text-transparent'
-                            )}
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all"
+                            style={loyaltyApplied
+                              ? { borderColor: tc.color, backgroundColor: tc.color, color: 'white' }
+                              : { borderColor: '#d1d5db', backgroundColor: 'white', color: 'transparent' }
+                            }
                           >
                             <CheckCircle2 size={12} />
                           </div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">
-                              Giam gia hoi vien
+                              Giảm giá hội viên
                             </p>
-                            <p className="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700">
-                              Bat de ap dung uu dai hang {customerProfile?.tierName || previewData?.currentTierName || 'Thanh vien'} ({formatPercent(currentTierRate)})
+                            <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
+                              Bật để áp dụng ưu đãi hạng {customerProfile?.tierName || previewData?.currentTierName || 'Thành viên'} ({formatPercent(currentTierRate)})
                             </p>
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="text-[8px] font-black uppercase text-gray-400">Member</p>
-                          <p className={cn(
-                            'mt-1 text-sm font-black',
-                            loyaltyApplied ? 'text-emerald-600' : 'text-gray-300'
-                          )}>
+                          <p
+                            className="mt-1 text-sm font-black transition-all"
+                            style={{ color: loyaltyApplied ? tc.color : '#d1d5db' }}
+                          >
                             {loyaltyApplied ? `-${formatVND(memberDiscountValue)}` : formatVND(0)}
                           </p>
                         </div>
@@ -1170,15 +1219,15 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                   )}
 
                   {!tiersLoading && !customerLoading && hasCustomer && !canApplyLoyalty && (
-                    <div className="mt-4 rounded-2xl border border-gray-200 bg-white/80 px-4 py-3">
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-white/80 px-4 py-3">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 h-5 w-5 shrink-0 rounded-md border-2 border-gray-200 bg-gray-50" />
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-                            Giam gia hoi vien
+                            Giảm giá hội viên
                           </p>
                           <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
-                            Khach hien tai chua co ty le giam gia theo hang. Hoa don nay van duoc cong diem tich luy.
+                            Khách hiện tại chưa có tỉ lệ giảm giá theo hạng. Hóa đơn này vẫn được cộng điểm tích lũy.
                           </p>
                         </div>
                       </div>
@@ -1186,15 +1235,15 @@ const PaymentModal = ({ isOpen, onClose, table, order }) => {
                   )}
                 </div>
               ) : (
-                <div className="rounded-[1.75rem] border border-dashed border-gray-200 bg-gray-50/80 p-4">
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-400">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-400">
                       <ShieldCheck size={18} />
                     </div>
                     <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-gray-400">Hoi vien</p>
+                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-gray-400">Hội viên</p>
                       <p className="mt-2 text-[11px] font-bold leading-relaxed text-gray-600">
-                        Gan khach hang vao don de mo uu dai hoi vien va theo doi lo trinh len hang.
+                        Gán khách hàng vào đơn để mở ưu đãi hội viên và theo dõi lộ trình lên hạng.
                       </p>
                     </div>
                   </div>
