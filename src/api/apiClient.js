@@ -15,7 +15,7 @@ import axios from 'axios';
  */
 
 // --- CONSTANTS ---
-const BASE_URL = '/api/v1';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const ACCESS_TOKEN_KEY = 'accessToken';
 
 // --- CREATE INSTANCE ---
