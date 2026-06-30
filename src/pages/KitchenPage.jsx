@@ -10,7 +10,7 @@ import { useKitchenStore } from '../store/useKitchenStore';
 import { useBranchContext, BRANCH_ALL } from '../context/BranchContext';
 import { useAuthStore } from '../store/useAuthStore';
 import toast from 'react-hot-toast';
-import KitchenItemCard from '../components/kitchen/KitchenItemCard';
+import KitchenItemCard from '../components/Kitchen/KitchenItemCard';
 import {
   ChefHat, RefreshCw, Flame, History,
   CheckCircle2, XCircle, X, UtensilsCrossed
