@@ -13,18 +13,18 @@
  *   - Nút "Gửi bếp": Có 2 trạng thái loading: isCheckingStock và isSending.
  */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useTableStore } from '../store/useTableStore';
-import { useOrderStore } from '../store/useOrderStore';
-import { useCartStore, EMPTY_DRAFT } from '../store/useCartStore';
-import { cn } from '../utils/cn';
+import { useTableStore } from '../../store/useTableStore';
+import { useOrderStore } from '../../store/useOrderStore';
+import { useCartStore, EMPTY_DRAFT } from '../../store/useCartStore';
+import { cn } from '../../utils/cn';
 import {
   Minus, Plus, Trash2, ShoppingBag,
   Receipt, ChefHat, Check, Loader2,
   MessageSquare,
   AlertTriangle, PackageX, ChevronDown, Package2
 } from 'lucide-react';
-import PaymentModal from './pos/PaymentModal';
-import CustomerSelector from './pos/CustomerSelector';
+import PaymentModal from './PaymentModal';
+import CustomerSelector from './CustomerSelector';
 
 const formatVND = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount ?? 0);

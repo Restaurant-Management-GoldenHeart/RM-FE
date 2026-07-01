@@ -7,22 +7,22 @@ import {
 } from 'lucide-react';
 import { Listbox } from '@headlessui/react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
-import { useInventory } from '../hooks/useInventory';
-import { inventoryApi } from '../api/inventoryApi';
-import { useMediaQuery } from '../hooks/useMediaQuery';
-import PortalFAB from '../components/PortalFAB';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useInventory } from '../../hooks/useInventory';
+import { inventoryApi } from '../../api/inventoryApi';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import PortalFAB from '../../components/common/PortalFAB';
 
 // Components
-import InventoryTable from '../components/inventory/InventoryTable';
-import InventoryMobileList from '../components/inventory/InventoryMobileList';
-import InventoryFormModal from '../components/inventory/InventoryFormModal';
-import RestockModal from '../components/inventory/RestockModal';
-import InventoryHistoryModal from '../components/inventory/InventoryHistoryModal';
-import InventoryImportModal from '../components/inventory/InventoryImportModal';
-import LowStockAlert from '../components/inventory/LowStockAlert';
-import PremiumConfirmModal from '../components/PremiumConfirmModal';
-import PaginationBar from '../components/common/PaginationBar';
+import InventoryTable from '../../components/inventory/InventoryTable';
+import InventoryMobileList from '../../components/inventory/InventoryMobileList';
+import InventoryFormModal from '../../components/inventory/InventoryFormModal';
+import RestockModal from '../../components/inventory/RestockModal';
+import InventoryHistoryModal from '../../components/inventory/InventoryHistoryModal';
+import InventoryImportModal from '../../components/inventory/InventoryImportModal';
+import LowStockAlert from '../../components/inventory/LowStockAlert';
+import PremiumConfirmModal from '../../components/common/PremiumConfirmModal';
+import PaginationBar from '../../components/common/PaginationBar';
 
 // Utils
 const fmtNumber = (n) => new Intl.NumberFormat('vi-VN').format(n || 0);

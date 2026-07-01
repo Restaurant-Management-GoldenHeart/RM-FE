@@ -12,7 +12,7 @@
  *   POST   /tables/{id}/split           → Tách món sang bàn khác
  *   POST   /tables/merge                → Gộp 2 bàn lại với nhau
  */
-import apiClient from '../../api/apiClient';
+import apiClient from './apiClient';
 
 export const tableApi = {
 

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, CheckCircle2, BellOff, X } from 'lucide-react';
-import { notificationApi } from '../api/notificationApi';
-import { useBranchContext } from '../context/BranchContext';
+import { notificationApi } from '../../api/notificationApi';
+import { useBranchContext } from '../../context/BranchContext';
 import NotificationItem from './NotificationItem';
 
 const POLL_INTERVAL = 30_000; // 30 seconds

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleX, ExternalLink, Loader2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import paymentApi from '../services/api/paymentApi';
+import paymentApi from '../api/paymentApi';
 
 const VARIANTS = {
   success: {

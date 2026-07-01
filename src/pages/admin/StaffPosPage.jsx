@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { usePOSAdapter } from '../hooks/adapters/usePOSAdapter';
-import { useBranchContext } from '../context/BranchContext';
-import { TableList } from '../components/TableManagement';
-import { MenuGrid } from '../components/MenuManagement';
-import { CartPanel } from '../components/CartManagement';
+import { usePOSAdapter } from '../../hooks/adapters/usePOSAdapter';
+import { useBranchContext } from '../../context/BranchContext';
+import { TableList } from '../../components/pos/TableManagement';
+import { MenuGrid } from '../../components/pos/MenuManagement';
+import { CartPanel } from '../../components/pos/CartManagement';
 
 const StaffPosPage = () => {
   const { selectedBranchId } = useBranchContext();

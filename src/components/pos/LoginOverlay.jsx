@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { usePosStore } from '../store/usePosStore';
+import { usePosStore } from '../../store/usePosStore';
 import { Lock, User, Key, ArrowRight, Loader2 } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { cn } from '../../utils/cn';
 
 const LoginOverlay = () => {
   const { login, loading, accessToken } = usePosStore();

@@ -1,18 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import { useAuthStore } from '../store/useAuthStore';
-import { useMenu } from '../hooks/useMenu';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useMenu } from '../../hooks/useMenu';
 
 // Modular Components
-import { MenuHeader } from '../components/menu/MenuHeader';
-import { MenuFilterBar } from '../components/menu/MenuFilterBar';
-import { MenuTable } from '../components/menu/MenuTable';
-import { MenuFormModal } from '../components/menu/MenuFormModal';
-import { DeleteConfirmModal } from '../components/menu/DeleteConfirmModal';
-import { CategoryFormModal } from '../components/menu/CategoryFormModal';
-import MenuMobileList from '../components/menu/MenuMobileList';
-import PaginationBar from '../components/common/PaginationBar';
-import { useMediaQuery } from '../hooks/useMediaQuery';
-import PortalFAB from '../components/PortalFAB';
+import { MenuHeader } from '../../components/menu/MenuHeader';
+import { MenuFilterBar } from '../../components/menu/MenuFilterBar';
+import { MenuTable } from '../../components/menu/MenuTable';
+import { MenuFormModal } from '../../components/menu/MenuFormModal';
+import { DeleteConfirmModal } from '../../components/menu/DeleteConfirmModal';
+import { CategoryFormModal } from '../../components/menu/CategoryFormModal';
+import MenuMobileList from '../../components/menu/MenuMobileList';
+import PaginationBar from '../../components/common/PaginationBar';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import PortalFAB from '../../components/common/PortalFAB';
 import { Plus, FolderPlus, UtensilsCrossed } from 'lucide-react';
 
 /**

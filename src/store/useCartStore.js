@@ -30,8 +30,8 @@
  */
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
-import orderApi from '../services/api/orderApi';
-import { mapOrder } from '../services/mapper/orderMapper';
+import orderApi from '../api/orderApi';
+import { mapOrder } from '../api/mappers/orderMapper';
 import { useOrderStore } from './useOrderStore';
 import { useAuthStore } from './useAuthStore';
 import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
@@ -803,7 +803,7 @@ export const useCartStore = create((set, get) => ({
     try {
       // Re-validate trạng thái bàn phòng hờ (chống Race Condition giữa nhiều POS)
       const { useTableStore } = await import('./useTableStore');
-      const { tableApi } = await import('../services/api/tableApi');
+      const { tableApi } = await import('../api/tableApi');
       const tableCheckRes = await tableApi.getTables(branchId);
       const latestTable = tableCheckRes?.data?.find(t => t.id === tableId);
 

@@ -33,13 +33,13 @@ import {
 import { useTableStore } from '../../store/useTableStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useKitchenStore } from '../../store/useKitchenStore';
-import orderApi from '../../services/api/orderApi';
-import paymentApi from '../../services/api/paymentApi';
-import tableApi from '../../services/api/tableApi';
+import orderApi from '../../api/orderApi';
+import paymentApi from '../../api/paymentApi';
+import tableApi from '../../api/tableApi';
 import { reportApi } from '../../api/reportApi';
 import { customerTierApi } from '../../api/customerTierApi';
 import { customerApi } from '../../api/customerApi';
-import { groupOrderItemsForSummary } from '../../services/mapper/orderMapper';
+import { groupOrderItemsForSummary } from '../../api/mappers/orderMapper';
 import { cn } from '../../utils/cn';
 import { downloadBlobAsFile } from '../../utils/fileDownload';
 

@@ -9,8 +9,8 @@
  */
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
-import tableApi from '../services/api/tableApi';
-import { mapTables } from '../services/mapper/tableMapper';
+import tableApi from '../api/tableApi';
+import { mapTables } from '../api/mappers/tableMapper';
 import { useAuthStore } from './useAuthStore';
 import { getPersistedBranchId, resolveBranchId } from '../utils/branchResolver';
 
@@ -170,7 +170,7 @@ export const useTableStore = create((set, get) => ({
       // 2. Tải danh sách món từ bếp để "Self-healing" đơn mang về
       let takeawayFromBE = [];
       try {
-        const { kitchenServiceApi } = await import('../services/api/kitchenServiceApi');
+        const { kitchenServiceApi } = await import('../api/kitchenServiceApi');
         const kitchenRes = await kitchenServiceApi.getPendingItems(resolvedBranchId);
         const kitchenItems = kitchenRes?.data || [];
 
@@ -399,14 +399,14 @@ export const useTableStore = create((set, get) => ({
       useOrderStore.setState({ loadingOrder: true });
 
       try {
-        const { tableApi } = await import('../services/api/tableApi');
+        const { tableApi } = await import('../api/tableApi');
         const response = await tableApi.getActiveOrder(targetId, {
           signal: _activeOrderAbortController.signal
         });
 
         if (currentReqId !== _activeOrderRequestId) return;
 
-        const { mapOrder } = await import('../services/mapper/orderMapper');
+        const { mapOrder } = await import('../api/mappers/orderMapper');
         const order = mapOrder(response?.data);
 
         if (!order) {

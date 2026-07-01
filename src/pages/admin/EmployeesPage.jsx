@@ -15,10 +15,10 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
-import { useEmployees } from '../hooks/useEmployees';
-import EmployeeFormModal from '../components/employees/EmployeeFormModal';
-import PremiumConfirmModal from '../components/PremiumConfirmModal';
-import PortalFAB from '../components/PortalFAB';
+import { useEmployees } from '../../hooks/useEmployees';
+import EmployeeFormModal from '../../components/employees/EmployeeFormModal';
+import PremiumConfirmModal from '../../components/common/PremiumConfirmModal';
+import PortalFAB from '../../components/common/PortalFAB';
 
 /**
  * EmployeesPage.jsx — Quản lý nhân viên với theme "Simple White & Gold".

@@ -6,7 +6,7 @@ import {
     Zap, TrendingUp, TrendingDown, Activity, WifiOff,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { inventoryApi } from '../api/inventoryApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 

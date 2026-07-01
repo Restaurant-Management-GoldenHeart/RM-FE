@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useTableMapAdapter } from '../hooks/adapters/useTableMapAdapter';
-import FloorPlanView from '../components/table-map/FloorPlanView';
-import TableFormModal from '../components/table-map/TableFormModal';
-import AreaFormModal from '../components/table-map/AreaFormModal';
-import ConfirmModal from '../components/ConfirmModal';
+import { useTableMapAdapter } from '../../hooks/adapters/useTableMapAdapter';
+import FloorPlanView from '../../components/table-map/FloorPlanView';
+import TableFormModal from '../../components/table-map/TableFormModal';
+import AreaFormModal from '../../components/table-map/AreaFormModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { Plus, LayoutGrid, Loader2, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 

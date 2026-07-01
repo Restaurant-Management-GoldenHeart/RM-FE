@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { removeToken } from '../../api/apiClient';
-import BranchSelectionModal from '../BranchSelectionModal';
+import BranchSelectionModal from '../branch/BranchSelectionModal';
 import Header from './Header';
 import BottomNav from './BottomNav';
 

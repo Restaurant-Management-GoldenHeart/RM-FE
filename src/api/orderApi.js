@@ -16,7 +16,7 @@
  *   PUT    /orders/order-items/{itemId}/serve    → Đánh dấu món đã phục vụ
  *   PUT    /kitchen/order-items/{itemId}/status  → Cập nhật trạng thái ở bếp (kể cả hủy)
  */
-import apiClient from '../../api/apiClient';
+import apiClient from './apiClient';
 
 export const orderApi = {
 

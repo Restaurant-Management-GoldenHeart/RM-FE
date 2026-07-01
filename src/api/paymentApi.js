@@ -13,7 +13,7 @@
  * → Rủi ro: Nếu bước 2 thất bại sau khi bước 1 thành công → Bill bị "treo" (status UNPAID).
  * → FE phải xử lý lỗi này rõ ràng và thông báo cho người dùng.
  */
-import apiClient from '../../api/apiClient';
+import apiClient from './apiClient';
 
 export const paymentApi = {
 

@@ -24,8 +24,8 @@
  */
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
-import kitchenServiceApi from '../services/api/kitchenServiceApi';
-import { mapKitchenItems } from '../services/mapper/kitchenMapper';
+import kitchenServiceApi from '../api/kitchenServiceApi';
+import { mapKitchenItems } from '../api/mappers/kitchenMapper';
 import { inventoryApi } from '../api/inventoryApi';
 import { useAuthStore } from './useAuthStore';
 import { extractErrorMessage } from '../utils/errorHelper';

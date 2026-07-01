@@ -17,7 +17,7 @@ import {
 import { clsx } from 'clsx';
 import { reportApi } from '../../api/reportApi';
 import { orderApi } from '../../api/posApi';
-import { groupOrderItemsForSummary, mapOrderItem, mapOrderSummaryItem } from '../../services/mapper/orderMapper';
+import { groupOrderItemsForSummary, mapOrderItem, mapOrderSummaryItem } from '../../api/mappers/orderMapper';
 import { downloadBlobAsFile } from '../../utils/fileDownload';
 
 const wait = (milliseconds) =>

@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { useAuthStore } from '../store/useAuthStore';
-import { useCustomers } from '../hooks/useCustomers';
-import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useCustomers } from '../../hooks/useCustomers';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Plus } from 'lucide-react';
 
 // Modular Components
-import { CustomerHeader } from '../components/customers/CustomerHeader';
-import { CustomerFilterBar } from '../components/customers/CustomerFilterBar';
-import { CustomerTable } from '../components/customers/CustomerTable';
-import CustomerMobileList from '../components/customers/CustomerMobileList';
-import { CustomerFormModal } from '../components/customers/CustomerFormModal';
-import { CustomerDeleteModal } from '../components/customers/CustomerDeleteModal';
+import { CustomerHeader } from '../../components/customers/CustomerHeader';
+import { CustomerFilterBar } from '../../components/customers/CustomerFilterBar';
+import { CustomerTable } from '../../components/customers/CustomerTable';
+import CustomerMobileList from '../../components/customers/CustomerMobileList';
+import { CustomerFormModal } from '../../components/customers/CustomerFormModal';
+import { CustomerDeleteModal } from '../../components/customers/CustomerDeleteModal';
 
 /**
  * CustomersPage - Main Container for Customer Management (CRM)

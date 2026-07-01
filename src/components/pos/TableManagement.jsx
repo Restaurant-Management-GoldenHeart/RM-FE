@@ -15,12 +15,12 @@ import {
   User as UserIcon,
   X,
 } from 'lucide-react';
-import { useTableStore } from '../store/useTableStore';
-import SplitTableModal from './pos/SplitTableModal';
-import UnmergeTableModal from './pos/UnmergeTableModal';
-import FloorPlanView from './table-map/FloorPlanView';
-import { cn } from '../utils/cn';
-import { isTakeawayArea } from '../utils/takeaway';
+import { useTableStore } from '../../store/useTableStore';
+import SplitTableModal from './SplitTableModal';
+import UnmergeTableModal from './UnmergeTableModal';
+import FloorPlanView from '../table-map/FloorPlanView';
+import { cn } from '../../utils/cn';
+import { isTakeawayArea } from '../../utils/takeaway';
 
 const STATUS_CONFIG = {
   AVAILABLE: { label: 'Trống' },

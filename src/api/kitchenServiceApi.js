@@ -8,7 +8,7 @@
  *   GET  /kitchen/orders/pending?branchId={id}   → Lấy danh sách món chờ bếp xử lý
  *   PUT  /kitchen/order-items/{itemId}/status     → Cập nhật trạng thái món ở bếp
  */
-import apiClient from '../../api/apiClient';
+import apiClient from './apiClient';
 
 export const kitchenServiceApi = {
 

@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, User, Store, Check, ChevronDown, UserCircle2, KeyRound } from 'lucide-react';
-// import NotificationBell from '../NotificationBell';
-import BranchSelector from '../BranchSelector';
+// import NotificationBell from '../notifications/NotificationBell';
+import BranchSelector from '../branch/BranchSelector';
 import { useBranchContext, BRANCH_ALL } from '../../context/BranchContext';
 import { employeeApi } from '../../api/employeeApi';
 

@@ -19,8 +19,8 @@
  */
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
-import orderApi from '../services/api/orderApi';
-import { mapOrder } from '../services/mapper/orderMapper';
+import orderApi from '../api/orderApi';
+import { mapOrder } from '../api/mappers/orderMapper';
 
 const log = {
   info: (msg, data) => console.log(`%c[OrderStore] ${msg}`, 'color:#d97706;font-weight:bold', data || ''),

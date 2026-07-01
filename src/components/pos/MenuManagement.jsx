@@ -9,13 +9,13 @@
  *   - Tab Combo: chọn combo → tự động thêm tất cả món vào giỏ với giá đã giảm.
  */
 import React, { useState, useMemo, useEffect } from 'react';
-import { useTableStore } from '../store/useTableStore';
-import { useCartStore, EMPTY_DRAFT } from '../store/useCartStore';
-import { usePosStore } from '../store/usePosStore';
-import { useBranchContext } from '../context/BranchContext';
+import { useTableStore } from '../../store/useTableStore';
+import { useCartStore, EMPTY_DRAFT } from '../../store/useCartStore';
+import { usePosStore } from '../../store/usePosStore';
+import { useBranchContext } from '../../context/BranchContext';
 import { useQuery } from '@tanstack/react-query';
-import { comboApi } from '../api/comboApi';
-import { cn } from '../utils/cn';
+import { comboApi } from '../../api/comboApi';
+import { cn } from '../../utils/cn';
 import { Search, Plus, UtensilsCrossed, Frown, Check, Package2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 

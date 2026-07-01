@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, X, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { cn } from '../../utils/cn';
 
 /**
  * ConfirmModal — Modal xác nhận dùng chung cho toàn ứng dụng.
